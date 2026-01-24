@@ -15,10 +15,14 @@
     "watch": "node auto-release.js"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.57.4",
+    "@tavily/core": "^0.7.1",
     "next": "15.5.3",
+    "openai": "^6.16.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "xml2js": "^0.6.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

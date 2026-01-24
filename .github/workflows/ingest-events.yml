@@ -1,0 +1,44 @@
+name: Ingest Events
+
+on:
+  # Run daily at 6 AM UTC (midnight Mountain Time)
+  schedule:
+    - cron: '0 6 * * *'
+
+  # Allow manual trigger from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run event ingestion
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE: ${{ secrets.SUPABASE_SERVICE_ROLE }}
+          TICKETMASTER_API_KEY: ${{ secrets.TICKETMASTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: node scripts/ingest-all-sources.mjs
+
+      - name: Summary
+        run: |
+          echo "## Event Ingestion Complete! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Events have been refreshed from all sources:" >> $GITHUB_STEP_SUMMARY
+          echo "- Ticketmaster" >> $GITHUB_STEP_SUMMARY
+          echo "- City of Thornton" >> $GITHUB_STEP_SUMMARY
+          echo "- Adams County" >> $GITHUB_STEP_SUMMARY
+          echo "- Anythink Libraries" >> $GITHUB_STEP_SUMMARY
