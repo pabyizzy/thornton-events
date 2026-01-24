@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { createHash } from 'crypto'
 import { parseStringPromise } from 'xml2js'
+import { addImagesToEvents } from './lib/generate-event-image.mjs'
 
 // Load environment variables from .env.local
 config({ path: '.env.local' })
@@ -245,10 +246,23 @@ async function main() {
     process.exit(0)
   }
 
-  console.log(`📝 Upserting ${futureEvents.length} events into database...`)
+  // Add images to events (uses Unsplash API if available)
+  // Note: For large batches, we limit to first 40 to respect API rate limits
+  const eventsToProcess = futureEvents.slice(0, 40)
+  const remainingEvents = futureEvents.slice(40)
+
+  const eventsWithImages = await addImagesToEvents(eventsToProcess, {
+    preferredSource: 'unsplash',
+    delayMs: 1200, // Unsplash rate limit: 50 req/hour
+  })
+
+  // Combine processed events with remaining (no images for overflow)
+  const allEvents = [...eventsWithImages, ...remainingEvents]
+
+  console.log(`📝 Upserting ${allEvents.length} events into database...`)
 
   // Upsert events into database
-  const { error } = await supabase.from('events').upsert(futureEvents, {
+  const { error } = await supabase.from('events').upsert(allEvents, {
     onConflict: 'source_name,source_id',
     ignoreDuplicates: false,
   })
@@ -258,16 +272,19 @@ async function main() {
     process.exit(1)
   }
 
-  console.log(`✅ Successfully upserted ${futureEvents.length} events`)
+  console.log(`✅ Successfully upserted ${allEvents.length} events`)
 
   console.log('\n✨ Anythink Libraries ingestion complete!')
-  console.log(`📊 Total events processed: ${futureEvents.length}`)
+  console.log(`📊 Total events processed: ${allEvents.length}`)
+  const withImages = allEvents.filter(e => e.image_url).length
+  console.log(`🖼️  Events with images: ${withImages}/${allEvents.length}`)
 
   // Show sample events
   console.log('\n📋 Sample events:')
-  futureEvents.slice(0, 5).forEach((e) => {
+  allEvents.slice(0, 5).forEach((e) => {
     const date = new Date(e.start_time)
-    console.log(`  - ${e.title.substring(0, 50)} (${date.toLocaleDateString()}) @ ${e.venue}`)
+    const hasImg = e.image_url ? '🖼️' : '❌'
+    console.log(`  ${hasImg} ${e.title.substring(0, 50)} (${date.toLocaleDateString()}) @ ${e.venue}`)
   })
 }
 

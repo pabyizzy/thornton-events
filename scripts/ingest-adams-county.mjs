@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import OpenAI from 'openai'
 import { createHash } from 'crypto'
+import { addImagesToEvents } from './lib/generate-event-image.mjs'
 
 // Load environment variables from .env.local
 config({ path: '.env.local' })
@@ -185,12 +186,18 @@ async function main() {
   // Transform events to database schema
   const transformedEvents = extractedEvents.map(transformAdamsCountyEvent)
 
-  console.log(`📝 Upserting ${transformedEvents.length} events into database...`)
+  // Add images to events (uses Unsplash API if available)
+  const eventsWithImages = await addImagesToEvents(transformedEvents, {
+    preferredSource: 'unsplash',
+    delayMs: 1200, // Unsplash rate limit: 50 req/hour
+  })
+
+  console.log(`📝 Upserting ${eventsWithImages.length} events into database...`)
 
   // Upsert events into database
   const { error } = await supabase
     .from('events')
-    .upsert(transformedEvents, {
+    .upsert(eventsWithImages, {
       onConflict: 'source_name,source_id',
       ignoreDuplicates: false,
     })
@@ -200,16 +207,19 @@ async function main() {
     process.exit(1)
   }
 
-  console.log(`✅ Successfully upserted ${transformedEvents.length} events`)
+  console.log(`✅ Successfully upserted ${eventsWithImages.length} events`)
 
   console.log('\n✨ Adams County ingestion complete!')
-  console.log(`📊 Total events processed: ${transformedEvents.length}`)
+  console.log(`📊 Total events processed: ${eventsWithImages.length}`)
+  const withImages = eventsWithImages.filter(e => e.image_url).length
+  console.log(`🖼️  Events with images: ${withImages}/${eventsWithImages.length}`)
 
   // Show sample events
   console.log('\n📋 Events extracted:')
-  transformedEvents.forEach(e => {
+  eventsWithImages.forEach(e => {
     const date = new Date(e.start_time)
-    console.log(`  - ${e.title} (${date.toLocaleDateString()})`)
+    const hasImg = e.image_url ? '🖼️' : '❌'
+    console.log(`  ${hasImg} ${e.title} (${date.toLocaleDateString()})`)
   })
 }
 

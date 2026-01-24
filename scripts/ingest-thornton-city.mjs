@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import OpenAI from 'openai'
 import { createHash } from 'crypto'
+import { addImagesToEvents } from './lib/generate-event-image.mjs'
 
 // Load environment variables from .env.local
 config({ path: '.env.local' })
@@ -214,16 +215,25 @@ async function main() {
     // Transform events to our schema
     const transformedEvents = extractedEvents.map(transformThorntonEvent)
 
+    // Add images to events (uses Unsplash API if available)
+    const eventsWithImages = await addImagesToEvents(transformedEvents, {
+      preferredSource: 'unsplash',
+      delayMs: 1200, // Unsplash rate limit: 50 req/hour
+    })
+
     // Upsert into database
-    await upsertEvents(transformedEvents)
+    await upsertEvents(eventsWithImages)
 
     console.log('\n✨ City of Thornton ingestion complete!')
-    console.log(`📊 Total events processed: ${transformedEvents.length}`)
+    console.log(`📊 Total events processed: ${eventsWithImages.length}`)
+    const withImages = eventsWithImages.filter(e => e.image_url).length
+    console.log(`🖼️  Events with images: ${withImages}/${eventsWithImages.length}`)
 
     // Display sample events
     console.log('\n📋 Sample events:')
-    transformedEvents.slice(0, 3).forEach(event => {
-      console.log(`  - ${event.title} (${new Date(event.start_time).toLocaleDateString()})`)
+    eventsWithImages.slice(0, 3).forEach(event => {
+      const hasImg = event.image_url ? '🖼️' : '❌'
+      console.log(`  ${hasImg} ${event.title} (${new Date(event.start_time).toLocaleDateString()})`)
     })
 
   } catch (error) {
