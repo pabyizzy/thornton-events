@@ -13,7 +13,6 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import OpenAI from 'openai'
 import { createHash } from 'crypto'
-import { addImagesToEvents } from './lib/generate-event-image.mjs'
 
 // Load environment variables from .env.local
 config({ path: '.env.local' })
@@ -66,10 +65,10 @@ async function fetchAdamsCountyEventsPage() {
 }
 
 /**
- * Use OpenAI to extract event data from HTML
+ * Use OpenAI to extract event data from HTML (including images)
  */
 async function extractEventsWithAI(html) {
-  console.log('🤖 Using AI to extract event information...')
+  console.log('🤖 Using AI to extract event information (including images)...')
 
   const currentYear = new Date().getFullYear()
 
@@ -82,6 +81,9 @@ Look for major annual events like:
 - Stars & Stripes / Independence Day celebration (usually July 3-4)
 - Any other special events mentioned
 
+IMPORTANT: Also extract the event image URL if present. Look for <img> tags near each event section.
+Image URLs will be in format: https://adamscountyco.gov/wp-content/uploads/...
+
 For each event found, create a JSON object with:
 {
   "title": "Event Name",
@@ -92,6 +94,7 @@ For each event found, create a JSON object with:
   "address": "Address if mentioned",
   "city": "City name (Brighton, Commerce City, etc.)",
   "url": "https://adamscountyco.gov/our-county/parks-open-space-cultural-arts/special-events/",
+  "image_url": "https://adamscountyco.gov/wp-content/uploads/..." (the event image URL if found, or null),
   "category": "Community" or "Festival" or "Fair",
   "price_text": "Free" or price if mentioned
 }
@@ -105,7 +108,7 @@ Important date mappings for ${currentYear}:
 Return ONLY a valid JSON array of events. No explanations or markdown.
 
 HTML content:
-${html.substring(0, 50000)}`
+${html.substring(0, 60000)}`
 
   try {
     const completion = await openai.chat.completions.create({
@@ -113,7 +116,7 @@ ${html.substring(0, 50000)}`
       messages: [
         {
           role: 'system',
-          content: 'You are a precise web scraping assistant. Extract event data and return valid JSON only. No explanations, no markdown code blocks.'
+          content: 'You are a precise web scraping assistant. Extract event data including image URLs and return valid JSON only. No explanations, no markdown code blocks.'
         },
         { role: 'user', content: prompt }
       ],
@@ -158,7 +161,7 @@ function transformAdamsCountyEvent(event) {
     city: event.city || 'Brighton',
     state: 'CO',
     url: event.url || 'https://adamscountyco.gov/our-county/parks-open-space-cultural-arts/special-events/',
-    image_url: null,
+    image_url: event.image_url || null, // Now extracted by AI
     price_text: event.price_text || 'Free',
     category: event.category || 'Community',
     source: 'adams-county',
@@ -176,7 +179,7 @@ async function main() {
     process.exit(1)
   }
 
-  // Extract events using AI
+  // Extract events using AI (including images)
   const extractedEvents = await extractEventsWithAI(html)
   if (extractedEvents.length === 0) {
     console.log('⚠️ No events extracted')
@@ -186,18 +189,12 @@ async function main() {
   // Transform events to database schema
   const transformedEvents = extractedEvents.map(transformAdamsCountyEvent)
 
-  // Add images to events (uses Unsplash API if available)
-  const eventsWithImages = await addImagesToEvents(transformedEvents, {
-    preferredSource: 'unsplash',
-    delayMs: 1200, // Unsplash rate limit: 50 req/hour
-  })
-
-  console.log(`📝 Upserting ${eventsWithImages.length} events into database...`)
+  console.log(`📝 Upserting ${transformedEvents.length} events into database...`)
 
   // Upsert events into database
   const { error } = await supabase
     .from('events')
-    .upsert(eventsWithImages, {
+    .upsert(transformedEvents, {
       onConflict: 'source_name,source_id',
       ignoreDuplicates: false,
     })
@@ -207,16 +204,16 @@ async function main() {
     process.exit(1)
   }
 
-  console.log(`✅ Successfully upserted ${eventsWithImages.length} events`)
+  console.log(`✅ Successfully upserted ${transformedEvents.length} events`)
 
   console.log('\n✨ Adams County ingestion complete!')
-  console.log(`📊 Total events processed: ${eventsWithImages.length}`)
-  const withImages = eventsWithImages.filter(e => e.image_url).length
-  console.log(`🖼️  Events with images: ${withImages}/${eventsWithImages.length}`)
+  console.log(`📊 Total events processed: ${transformedEvents.length}`)
+  const withImages = transformedEvents.filter(e => e.image_url).length
+  console.log(`🖼️  Events with images: ${withImages}/${transformedEvents.length}`)
 
   // Show sample events
   console.log('\n📋 Events extracted:')
-  eventsWithImages.forEach(e => {
+  transformedEvents.forEach(e => {
     const date = new Date(e.start_time)
     const hasImg = e.image_url ? '🖼️' : '❌'
     console.log(`  ${hasImg} ${e.title} (${date.toLocaleDateString()})`)

@@ -10,7 +10,6 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import OpenAI from 'openai'
 import { createHash } from 'crypto'
-import { addImagesToEvents } from './lib/generate-event-image.mjs'
 
 // Load environment variables from .env.local
 config({ path: '.env.local' })
@@ -47,6 +46,42 @@ async function fetchThorntonEventsPage() {
     return html
   } catch (error) {
     console.error('❌ Error fetching page:', error.message)
+    return null
+  }
+}
+
+/**
+ * Fetch image from an event page
+ */
+async function fetchEventImage(eventUrl) {
+  try {
+    const response = await fetch(eventUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ThorntonEvents/1.0)',
+      },
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const html = await response.text()
+
+    // Look for event-specific images (not logos/favicons)
+    // Pattern: /sites/default/files/styles/.../*.jpg or .png
+    const imageMatch = html.match(/src="(\/sites\/default\/files\/styles\/[^"]*\.(jpg|png|webp)[^"]*)"/i)
+    if (imageMatch && imageMatch[1]) {
+      return `https://www.thorntonco.gov${imageMatch[1].replace(/&amp;/g, '&')}`
+    }
+
+    // Also check for images in /sites/default/files/ without styles
+    const altImageMatch = html.match(/src="(\/sites\/default\/files\/[^"]*\.(jpg|png|webp)[^"]*)"/i)
+    if (altImageMatch && altImageMatch[1] && !altImageMatch[1].includes('logo') && !altImageMatch[1].includes('Header')) {
+      return `https://www.thorntonco.gov${altImageMatch[1].replace(/&amp;/g, '&')}`
+    }
+
+    return null
+  } catch {
     return null
   }
 }
@@ -154,12 +189,47 @@ function transformThorntonEvent(event) {
     city: 'Thornton',
     state: 'CO',
     url: event.url,
-    image_url: null, // City website doesn't provide event images
+    image_url: null, // Will be filled in later
     price_text: event.price_text || 'Free',
     category: event.category || 'Community',
     source: 'city-thornton',
     source_type: 'ai-scraped',
   }
+}
+
+/**
+ * Add images to events by fetching from source pages
+ */
+async function addSourceImages(events) {
+  console.log(`\n🖼️  Fetching images from source pages...`)
+
+  const results = []
+
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+
+    process.stdout.write(`  [${i + 1}/${events.length}] ${event.title.substring(0, 40)}...`)
+
+    const imageUrl = await fetchEventImage(event.url)
+
+    if (imageUrl) {
+      results.push({ ...event, image_url: imageUrl })
+      console.log(' ✓')
+    } else {
+      results.push(event)
+      console.log(' (no image)')
+    }
+
+    // Small delay to be respectful to the server
+    if (i < events.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 300))
+    }
+  }
+
+  const withImages = results.filter(e => e.image_url).length
+  console.log(`✅ Found images for ${withImages}/${results.length} events\n`)
+
+  return results
 }
 
 /**
@@ -215,11 +285,8 @@ async function main() {
     // Transform events to our schema
     const transformedEvents = extractedEvents.map(transformThorntonEvent)
 
-    // Add images to events (uses Unsplash API if available)
-    const eventsWithImages = await addImagesToEvents(transformedEvents, {
-      preferredSource: 'unsplash',
-      delayMs: 1200, // Unsplash rate limit: 50 req/hour
-    })
+    // Fetch images from source event pages
+    const eventsWithImages = await addSourceImages(transformedEvents)
 
     // Upsert into database
     await upsertEvents(eventsWithImages)

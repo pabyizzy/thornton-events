@@ -107,7 +107,7 @@ export default function HomeClient() {
                 <h2 className="text-2xl md:text-3xl font-bold text-white text-center">
                   Local Family Events
                 </h2>
-                <p className="text-center text-orange-50 text-sm mt-1">
+                <p className="text-center text-white/90 text-sm mt-1">
                   Free community & library events in Thornton & Adams County
                 </p>
               </div>
@@ -136,7 +136,7 @@ export default function HomeClient() {
                 <h2 className="text-2xl md:text-3xl font-bold text-white text-center">
                   Concerts, Sports & Entertainment
                 </h2>
-                <p className="text-center text-blue-50 text-sm mt-1">
+                <p className="text-center text-white/90 text-sm mt-1">
                   Happening near Thornton
                 </p>
               </div>

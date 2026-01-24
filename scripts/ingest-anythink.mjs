@@ -13,7 +13,6 @@ import { createClient } from '@supabase/supabase-js'
 import { config } from 'dotenv'
 import { createHash } from 'crypto'
 import { parseStringPromise } from 'xml2js'
-import { addImagesToEvents } from './lib/generate-event-image.mjs'
 
 // Load environment variables from .env.local
 config({ path: '.env.local' })
@@ -147,6 +146,41 @@ function getCityFromVenue(venue) {
 }
 
 /**
+ * Fetch og:image from an event page
+ */
+async function fetchEventImage(eventUrl) {
+  try {
+    const response = await fetch(eventUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; ThorntonEvents/1.0)',
+      },
+    })
+
+    if (!response.ok) {
+      return null
+    }
+
+    const html = await response.text()
+
+    // Extract og:image from meta tag
+    const ogImageMatch = html.match(/<meta\s+property=['"]og:image['"]\s+content=['"]([^'"]+)['"]/i)
+    if (ogImageMatch && ogImageMatch[1]) {
+      return ogImageMatch[1]
+    }
+
+    // Try alternate format
+    const ogImageAltMatch = html.match(/property=['"]og:image['"]\s+content=['"]([^'"]+)['"]/i)
+    if (ogImageAltMatch && ogImageAltMatch[1]) {
+      return ogImageAltMatch[1]
+    }
+
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Fetch and parse RSS feed
  */
 async function fetchAnythinkEvents() {
@@ -215,12 +249,57 @@ function transformAnythinkEvent(item) {
     city: city,
     state: 'CO',
     url: link,
-    image_url: null,
+    image_url: null, // Will be filled in later
     price_text: 'Free',
     category: 'Library',
     source: 'anythink',
     source_type: 'rss-feed',
   }
+}
+
+/**
+ * Add images to events by fetching from source pages
+ */
+async function addSourceImages(events, maxEvents = 50) {
+  console.log(`\n🖼️  Fetching images from source pages (up to ${maxEvents} events)...`)
+
+  const eventsToFetch = events.slice(0, maxEvents)
+  const remainingEvents = events.slice(maxEvents)
+  const results = []
+
+  for (let i = 0; i < eventsToFetch.length; i++) {
+    const event = eventsToFetch[i]
+
+    // Skip if already has image
+    if (event.image_url) {
+      results.push(event)
+      continue
+    }
+
+    process.stdout.write(`  [${i + 1}/${eventsToFetch.length}] ${event.title.substring(0, 40)}...`)
+
+    const imageUrl = await fetchEventImage(event.url)
+
+    if (imageUrl) {
+      results.push({ ...event, image_url: imageUrl })
+      console.log(' ✓')
+    } else {
+      results.push(event)
+      console.log(' (no image)')
+    }
+
+    // Small delay to be respectful to the server
+    if (i < eventsToFetch.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
+
+  // Combine with remaining events (no images fetched for overflow)
+  const allEvents = [...results, ...remainingEvents]
+  const withImages = allEvents.filter(e => e.image_url).length
+  console.log(`✅ Found images for ${withImages}/${allEvents.length} events\n`)
+
+  return allEvents
 }
 
 async function main() {
@@ -246,23 +325,13 @@ async function main() {
     process.exit(0)
   }
 
-  // Add images to events (uses Unsplash API if available)
-  // Note: For large batches, we limit to first 40 to respect API rate limits
-  const eventsToProcess = futureEvents.slice(0, 40)
-  const remainingEvents = futureEvents.slice(40)
+  // Fetch images from source event pages
+  const eventsWithImages = await addSourceImages(futureEvents, 50)
 
-  const eventsWithImages = await addImagesToEvents(eventsToProcess, {
-    preferredSource: 'unsplash',
-    delayMs: 1200, // Unsplash rate limit: 50 req/hour
-  })
-
-  // Combine processed events with remaining (no images for overflow)
-  const allEvents = [...eventsWithImages, ...remainingEvents]
-
-  console.log(`📝 Upserting ${allEvents.length} events into database...`)
+  console.log(`📝 Upserting ${eventsWithImages.length} events into database...`)
 
   // Upsert events into database
-  const { error } = await supabase.from('events').upsert(allEvents, {
+  const { error } = await supabase.from('events').upsert(eventsWithImages, {
     onConflict: 'source_name,source_id',
     ignoreDuplicates: false,
   })
@@ -272,16 +341,16 @@ async function main() {
     process.exit(1)
   }
 
-  console.log(`✅ Successfully upserted ${allEvents.length} events`)
+  console.log(`✅ Successfully upserted ${eventsWithImages.length} events`)
 
   console.log('\n✨ Anythink Libraries ingestion complete!')
-  console.log(`📊 Total events processed: ${allEvents.length}`)
-  const withImages = allEvents.filter(e => e.image_url).length
-  console.log(`🖼️  Events with images: ${withImages}/${allEvents.length}`)
+  console.log(`📊 Total events processed: ${eventsWithImages.length}`)
+  const withImages = eventsWithImages.filter(e => e.image_url).length
+  console.log(`🖼️  Events with images: ${withImages}/${eventsWithImages.length}`)
 
   // Show sample events
   console.log('\n📋 Sample events:')
-  allEvents.slice(0, 5).forEach((e) => {
+  eventsWithImages.slice(0, 5).forEach((e) => {
     const date = new Date(e.start_time)
     const hasImg = e.image_url ? '🖼️' : '❌'
     console.log(`  ${hasImg} ${e.title.substring(0, 50)} (${date.toLocaleDateString()}) @ ${e.venue}`)
