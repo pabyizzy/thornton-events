@@ -1,14 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    // Static export for Hostinger deployment
-    output: 'export',
-    // Disable image optimization for static export
-    images: { unoptimized: true },
-    // Disable trailing slashes for static export
-    trailingSlash: false,
-    // Skip build-time errors for static export
-    skipTrailingSlashRedirect: true,
-    // Disable server-side features that don't work with static export
-  }
-  export default nextConfig
+  // Enable server-side rendering for authentication and dynamic features
+  // Note: For deployment, use Vercel, Netlify, or any Node.js hosting
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+    ],
+  },
+}
+export default nextConfig
   

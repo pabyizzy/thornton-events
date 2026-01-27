@@ -1,0 +1,111 @@
+Intro to Authentication
+So, what’s the difference between authentication and authorization?
+And what's OAuth?
+Getting started with authentication
+Best practices
+Already know what authentication is? Skip to Getting Started with Authentication.
+Because the Eventbrite API provides entry points into the secure parts of the Eventbrite platform, the protection of the data is an integral part of the API and the system as a whole. Authentication and authorization work as a team to secure the Eventbrite API.
+
+
+So, what’s the difference between authentication and authorization?
+Imagine you’re in line to see your favorite band in concert.
+
+Authentication verifies your identity, just like the security guard checking your ID at the door to make sure it matches the name on your ticket.
+
+OAuth does this by providing you with a public or private token. Every request to the Eventbrite platform must be authenticated; no unauthorized access is allowed. For more on OAuth, see the And what's OAuth? section.
+
+Authorization verifies your privileges, just like the usher who scans your ticket and walks you to the section that you’re allowed to access, whether it's general admission, the front row, or a backstage to meet the band.
+
+OAuth does this by generating a private token that's tied to an account or user. Each time you request something, you'll send this token to the server so that it knows whom the request came from and what that request is allowed to do.
+
+Authorization privileges might include the data, files, and pages you can view, edit, download, or delete.
+
+Once you have your token, you’ll use the same one every time you access the API.
+
+
+And what's OAuth?
+OAuth 2 (Open Authorization) is a security technology used for token-based authorization on the Internet. An OAuth token can also be called a private token.
+
+OAuth 2 replaced OAuth1 and is currently the most recent version of OAuth and the leading authorization solution on the Internet.
+
+All Eventbrite API requests must be authenticated with a valid OAuth token.
+
+
+Getting started with authentication
+Get a Private Token
+(For App Partners) Authorize your Users
+Authenticate API Requests
+
+1. Get a Private Token
+a. Log in to your Eventbrite account and visit your API Keys page.
+
+b. Copy your private token.
+
+
+2. (For App Partners) Authorize your Users
+Note: These steps enable you to perform API requests on behalf of other users. To perform API requests on your own behalf, skip to Authenticate API Requests.
+
+Authorize Users
+What You'll Need:
+
+API Key
+Client Secret
+Redirect URI
+Note: To find this information, visit your API Key Management page.
+
+The Eventbrite API uses OAuth 2.0 for authorization.
+
+There are two ways to authorize users: Server-side and client-side. We strongly recommend handling authorization on the server side for security reasons.
+
+Server-Side Authorization (Recommended)
+
+a. Redirect users to our authorization URL, while including your API key and redirect URI as query parameters: https://www.eventbrite.com/oauth/authorize?response_type=code&client_id=YOUR_API_KEY&redirect_uri=YOUR_REDIRECT_URI
+
+When the user authorizes your app, your redirect URI will receive a request from our authorization server with your access code included as a query parameter.
+
+Here's an example of the URI you will be redirected to (with the access code included as a query parameter): http://localhost:8080/oauth/redirect?code=YOUR_ACCESS_CODE
+
+b. Send a POST request to https://www.eventbrite.com/oauth/token that specifies the grant type and includes your access code, client secret, and API key. This data should be sent as part of your request header.
+
+Here's an example of a POST request using cURL:
+
+curl --request POST --url 'https://www.eventbrite.com/oauth/token' --header 'content-type: application/x-www-form-urlencoded' --data grant_type=authorization_code --data 'client_id=API_KEY --data client_secret=CLIENT_SECRET --data code=ACCESS_CODE --data 'redirect_uri=REDIRECT_URI'
+The server will verify the access code and call your redirect URI. The user's private token will be available in the JSON response. Use this private token to make API requests on behalf of this user.
+
+Client-Side Authorization
+
+a. Redirect users to our authorization URL, while including your API key and redirect URI as query parameters: https://www.eventbrite.com/oauth/authorize?response_type=token&client_id=YOUR_API_KEY&redirect_uri=YOUR_REDIRECT_URI
+
+When the user authorizes your app, your redirect URI will receive a request with the private token included as a query parameter.
+
+Next up: Follow the steps in Authenticate API Requests.
+
+
+3. Authenticate API Requests
+To authenticate API requests, you'll need to include either your private token or your user's private token.
+
+There are two ways of including your token in an API request:
+
+Authorization Header
+
+Include the following in your Authorization header (replacing MYTOKEN with your token):
+
+{ Authorization: Bearer MYTOKEN }
+
+Query Parameter Authentication
+
+Include the following at the end of the URL (replacing MYTOKEN with your token):
+
+/v3/users/me/?token=MYTOKEN
+
+For every user you would like to perform API requests on behalf of, repeat (For App Partners) Authorize your Users and Authenticate API Requests.
+
+
+Best practices
+These best practices ensure that your authentication and access to the Eventbrite API is successful and secure.
+
+Do not use your private token directly in client-side code.
+Before you make your application publicly available, ensure that your client-side code does not contain private tokens or any other private information.
+
+Delete unneeded API keys
+To minimize your exposure to attack, delete any private tokens that you no longer need.

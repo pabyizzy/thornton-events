@@ -7,6 +7,7 @@ import TodaysEvents from './components/TodaysEvents'
 import { type EventRow } from './components/EventCard'
 import GridEventCard from './components/GridEventCard'
 import PageLayout from './components/PageLayout'
+import FeaturedDealsCarousel from './components/FeaturedDealsCarousel'
 
 type HomeEvent = EventRow
 
@@ -101,10 +102,15 @@ export default function HomeClient() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content Column */}
           <div className="lg:col-span-2 space-y-8">
+            {/* FEATURED DEALS CAROUSEL - Hero Section */}
+            <section>
+              <FeaturedDealsCarousel />
+            </section>
+
             {/* LOCAL FAMILY EVENTS - Priority Section */}
-            <section className="bg-white rounded-lg shadow-sm overflow-hidden border-2 border-orange-200">
-              <div className="bg-gradient-to-r from-orange-500 to-coral-500 px-6 py-4">
-                <h2 className="text-2xl md:text-3xl font-bold text-white text-center">
+            <section className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-orange-100">
+              <div className="bg-gradient-to-r from-orange-500 via-orange-400 to-amber-500 px-6 py-5">
+                <h2 className="text-2xl md:text-3xl font-bold text-white text-center drop-shadow-sm">
                   Local Family Events
                 </h2>
                 <p className="text-center text-white/90 text-sm mt-1">
@@ -131,9 +137,9 @@ export default function HomeClient() {
             </section>
 
             {/* REGIONAL EVENTS - Ticketmaster */}
-            <section className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-500 px-6 py-4">
-                <h2 className="text-2xl md:text-3xl font-bold text-white text-center">
+            <section className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-blue-100">
+              <div className="bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-600 px-6 py-5">
+                <h2 className="text-2xl md:text-3xl font-bold text-white text-center drop-shadow-sm">
                   Concerts, Sports & Entertainment
                 </h2>
                 <p className="text-center text-white/90 text-sm mt-1">
@@ -157,34 +163,45 @@ export default function HomeClient() {
                 )}
 
                 {/* Browse All Events Button */}
-                <div className="text-center mt-8 pt-6 border-t border-gray-200">
+                <div className="text-center mt-8 pt-6 border-t border-gray-100">
                   <Link
                     href="/events"
-                    className="btn-secondary inline-block"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
                   >
                     Browse All Events
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
                   </Link>
                 </div>
               </div>
             </section>
 
             {/* Coming Soon: Articles Section */}
-            <section className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-teal-500 to-teal-400 px-6 py-4">
-                <h2 className="text-2xl md:text-3xl font-bold text-white text-center">
+            <section className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-teal-100">
+              <div className="bg-gradient-to-r from-teal-500 via-cyan-500 to-teal-400 px-6 py-5">
+                <h2 className="text-2xl md:text-3xl font-bold text-white text-center drop-shadow-sm">
                   Latest Articles
                 </h2>
               </div>
               <div className="p-8 text-center">
-                <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-                </svg>
+                <div className="w-20 h-20 mx-auto mb-4 bg-gradient-to-br from-teal-100 to-cyan-100 rounded-2xl flex items-center justify-center">
+                  <svg className="w-10 h-10 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                  </svg>
+                </div>
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">Coming Soon!</h3>
                 <p className="text-gray-600 mb-4">
                   We&apos;re working on bringing you great articles about family activities, local tips, and community news.
                 </p>
-                <Link href="/articles" className="text-blue-600 hover:text-blue-700 font-semibold">
-                  Learn More →
+                <Link
+                  href="/articles"
+                  className="inline-flex items-center gap-1 text-teal-600 hover:text-teal-700 font-semibold group"
+                >
+                  Learn More
+                  <svg className="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
                 </Link>
               </div>
             </section>
@@ -193,9 +210,9 @@ export default function HomeClient() {
           {/* Sidebar Column */}
           <div className="lg:col-span-1 space-y-6">
             {/* Today's Events Widget */}
-            <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-              <div className="bg-gradient-to-r from-red-500 to-pink-500 px-4 py-3">
-                <h3 className="font-bold text-lg text-white text-center">
+            <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+              <div className="bg-gradient-to-r from-red-500 via-pink-500 to-rose-500 px-4 py-4">
+                <h3 className="font-bold text-lg text-white text-center drop-shadow-sm">
                   TODAY&apos;S EVENTS
                 </h3>
               </div>
@@ -205,57 +222,80 @@ export default function HomeClient() {
             </div>
 
             {/* Newsletter Signup */}
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg shadow-sm p-6 border-2 border-blue-200">
-              <div className="text-center mb-4">
-                <svg className="w-12 h-12 mx-auto text-blue-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-                <h3 className="text-xl font-bold text-gray-900">Stay Updated!</h3>
-                <p className="text-sm text-gray-600 mt-1">
+            <div className="relative bg-gradient-to-br from-blue-500 via-indigo-500 to-purple-600 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 overflow-hidden group">
+              {/* Decorative elements */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
+
+              <div className="relative text-center mb-4">
+                <div className="w-14 h-14 mx-auto bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-white drop-shadow-sm">Stay Updated!</h3>
+                <p className="text-sm text-white/90 mt-1">
                   Get weekly updates on the best events happening in Thornton
                 </p>
               </div>
               <Link
                 href="/subscribe"
-                className="btn-primary w-full text-center block"
+                className="relative block w-full px-4 py-3 bg-white text-indigo-600 font-bold text-center rounded-xl shadow-md hover:shadow-lg transition-all hover:-translate-y-0.5"
               >
                 Subscribe to Newsletter
               </Link>
             </div>
 
             {/* Ad Space 1 */}
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <div className="space-y-4">
-                <div className="h-40 w-full overflow-hidden rounded-lg">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/herocollage/pexels-thelazyartist-1780357.jpg"
-                    alt="Promote your business"
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <h3 className="text-lg font-bold text-gray-900">Promote Your Business</h3>
-                <p className="text-sm text-gray-600">
+            <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+              <div className="h-40 w-full overflow-hidden">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/herocollage/pexels-thelazyartist-1780357.jpg"
+                  alt="Promote your business"
+                  className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+                />
+              </div>
+              <div className="p-5">
+                <h3 className="text-lg font-bold text-gray-900 mb-1">Promote Your Business</h3>
+                <p className="text-sm text-gray-600 mb-4">
                   Reach thousands of local families every week
                 </p>
                 <a
                   href="mailto:thorntoncoevents@gmail.com"
-                  className="btn-primary w-full text-center block"
+                  className="block w-full px-4 py-2.5 bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white font-semibold text-center rounded-xl shadow-md hover:shadow-lg transition-all"
                 >
                   Advertise Here
                 </a>
               </div>
             </div>
 
-            {/* Ad Space 2 */}
-            <div className="bg-white rounded-lg shadow-sm p-6 text-center border-2 border-dashed border-gray-300">
-              <div className="text-gray-400 mb-2">
-                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+            {/* Quick Links */}
+            <div className="bg-white rounded-2xl shadow-lg p-5">
+              <h3 className="font-bold text-gray-900 mb-4">Quick Links</h3>
+              <div className="space-y-2">
+                <Link href="/deals" className="flex items-center gap-3 p-3 rounded-xl bg-orange-50 hover:bg-orange-100 transition-colors group">
+                  <span className="text-2xl">🏷️</span>
+                  <div>
+                    <p className="font-semibold text-gray-900 group-hover:text-orange-600 transition-colors">Local Deals</p>
+                    <p className="text-xs text-gray-500">Save money at local businesses</p>
+                  </div>
+                </Link>
+                <Link href="/events" className="flex items-center gap-3 p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors group">
+                  <span className="text-2xl">📅</span>
+                  <div>
+                    <p className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">All Events</p>
+                    <p className="text-xs text-gray-500">Browse the full calendar</p>
+                  </div>
+                </Link>
+                <Link href="/deals/submit" className="flex items-center gap-3 p-3 rounded-xl bg-green-50 hover:bg-green-100 transition-colors group">
+                  <span className="text-2xl">🏪</span>
+                  <div>
+                    <p className="font-semibold text-gray-900 group-hover:text-green-600 transition-colors">Submit a Deal</p>
+                    <p className="text-xs text-gray-500">Business owners welcome!</p>
+                  </div>
+                </Link>
               </div>
-              <h4 className="text-sm font-semibold text-gray-500 mb-1">Ad Space Available</h4>
-              <p className="text-xs text-gray-400">300x250</p>
             </div>
           </div>
         </div>

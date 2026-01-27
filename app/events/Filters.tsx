@@ -5,9 +5,10 @@ type Props = {
   city?: string
   category?: string
   search?: string
+  freeOnly?: boolean
   cities: string[]
   categories: string[]
-  onFilterChange?: (filters: { dateRange?: string; city?: string; category?: string; search?: string }) => void
+  onFilterChange?: (filters: { dateRange?: string; city?: string; category?: string; search?: string; freeOnly?: boolean }) => void
 }
 
 function link(params: Record<string, string | undefined>) {
@@ -19,7 +20,7 @@ function link(params: Record<string, string | undefined>) {
   return `/events${qs ? `?${qs}` : ''}`
 }
 
-export default function Filters({ dateRange, city, category, search, cities, categories, onFilterChange }: Props) {
+export default function Filters({ dateRange, city, category, search, freeOnly, cities, categories, onFilterChange }: Props) {
   return (
     <>
       {/* Search */}
@@ -97,26 +98,26 @@ export default function Filters({ dateRange, city, category, search, cities, cat
             <button onClick={() => onFilterChange({ dateRange: 'today' })} className="px-4 py-2 bg-blue-100 text-blue-800 rounded-full text-sm font-medium hover:bg-blue-200 transition-colors duration-200">Today</button>
             <button onClick={() => onFilterChange({ dateRange: 'weekend' })} className="px-4 py-2 bg-purple-100 text-purple-800 rounded-full text-sm font-medium hover:bg-purple-200 transition-colors duration-200">This Weekend</button>
             <button onClick={() => onFilterChange({ dateRange: 'week' })} className="px-4 py-2 bg-green-100 text-green-800 rounded-full text-sm font-medium hover:bg-green-200 transition-colors duration-200">This Week</button>
-            <button onClick={() => onFilterChange({ category: 'free' })} className="px-4 py-2 bg-emerald-100 text-emerald-800 rounded-full text-sm font-medium hover:bg-emerald-200 transition-colors duration-200">Free Events</button>
+            <button onClick={() => onFilterChange({ freeOnly: !freeOnly })} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors duration-200 ${freeOnly ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'}`}>Free Events{freeOnly ? ' ✓' : ''}</button>
             <button onClick={() => onFilterChange({ category: 'family' })} className="px-4 py-2 bg-pink-100 text-pink-800 rounded-full text-sm font-medium hover:bg-pink-200 transition-colors duration-200">Family-Friendly</button>
-            <button onClick={() => onFilterChange({ dateRange: '', city: '', category: '' })} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors duration-200">Clear All</button>
+            <button onClick={() => onFilterChange({ dateRange: '', city: '', category: '', freeOnly: false })} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors duration-200">Clear All</button>
           </>
         ) : null}
       </div>
 
       {/* Clear filters (if using SSR links) */}
       <div className="mb-6">
-        {(city || category) && (
+        {(city || category || freeOnly) && (
             onFilterChange ? (
-              <button 
-                onClick={() => onFilterChange({ city: '', category: '' })} 
+              <button
+                onClick={() => onFilterChange({ city: '', category: '', freeOnly: false })}
                 className="theme-btn-secondary"
               >
                 🧹 Clear filters
               </button>
             ) : (
-              <a 
-                href={link({ dateRange })} 
+              <a
+                href={link({ dateRange })}
                 className="theme-btn-secondary"
               >
                 🧹 Clear filters

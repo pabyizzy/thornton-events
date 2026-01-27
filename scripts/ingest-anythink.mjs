@@ -52,8 +52,32 @@ function generateUUID(str) {
 }
 
 /**
+ * Check if a date falls within US Daylight Saving Time
+ * DST runs from 2nd Sunday of March to 1st Sunday of November
+ */
+function isDST(year, monthNum, day) {
+  // Create date to check
+  const date = new Date(Date.UTC(year, monthNum, day))
+
+  // Find 2nd Sunday of March
+  const marchFirst = new Date(Date.UTC(year, 2, 1))
+  const marchFirstDay = marchFirst.getUTCDay()
+  const dstStart = new Date(Date.UTC(year, 2, 8 + (7 - marchFirstDay) % 7))
+
+  // Find 1st Sunday of November
+  const novFirst = new Date(Date.UTC(year, 10, 1))
+  const novFirstDay = novFirst.getUTCDay()
+  const dstEnd = new Date(Date.UTC(year, 10, 1 + (7 - novFirstDay) % 7))
+
+  return date >= dstStart && date < dstEnd
+}
+
+/**
  * Parse date/time from RSS description
  * Format: "Saturday, January 24 2026 9:15am - 10:00am"
+ *
+ * IMPORTANT: Times in the RSS feed are in Mountain Time (MST/MDT)
+ * We need to create ISO strings with the correct timezone offset
  */
 function parseDateTimeFromDescription(description, pubDate) {
   try {
@@ -72,6 +96,8 @@ function parseDateTimeFromDescription(description, pubDate) {
       }
 
       const monthNum = months[month.toLowerCase()]
+      const dayNum = parseInt(day)
+      const yearNum = parseInt(year)
 
       let startH = parseInt(startHour)
       if (startAmPm.toLowerCase() === 'pm' && startH !== 12) startH += 12
@@ -81,12 +107,17 @@ function parseDateTimeFromDescription(description, pubDate) {
       if (endAmPm.toLowerCase() === 'pm' && endH !== 12) endH += 12
       if (endAmPm.toLowerCase() === 'am' && endH === 12) endH = 0
 
-      const startDate = new Date(year, monthNum, parseInt(day), startH, parseInt(startMin))
-      const endDate = new Date(year, monthNum, parseInt(day), endH, parseInt(endMin))
+      // Determine timezone offset: -06:00 for MDT (summer), -07:00 for MST (winter)
+      const offset = isDST(yearNum, monthNum, dayNum) ? '-06:00' : '-07:00'
+
+      // Format as ISO string with Mountain Time offset
+      const pad = (n) => n.toString().padStart(2, '0')
+      const startTimeStr = `${yearNum}-${pad(monthNum + 1)}-${pad(dayNum)}T${pad(startH)}:${pad(parseInt(startMin))}:00${offset}`
+      const endTimeStr = `${yearNum}-${pad(monthNum + 1)}-${pad(dayNum)}T${pad(endH)}:${pad(parseInt(endMin))}:00${offset}`
 
       return {
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
+        start_time: startTimeStr,
+        end_time: endTimeStr,
       }
     }
 

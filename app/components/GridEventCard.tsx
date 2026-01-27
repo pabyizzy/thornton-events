@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { EventRow } from './EventCard';
-import CustomIcon from './CustomIcon';
 
 interface GridEventCardProps {
   e: EventRow;
@@ -8,98 +7,95 @@ interface GridEventCardProps {
 
 export default function GridEventCard({ e }: GridEventCardProps) {
   const dt = e.start_time ? new Date(e.start_time) : null;
-  const when = dt ? dt.toLocaleString() : '';
+  const when = dt ? dt.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  }) : '';
   const where = [e.venue, e.city, e.state].filter(Boolean).join(', ');
-  const price = e.price_text || 'See site';
-  
+  const price = e.price_text || 'Free';
+
+  const isToday = dt && new Date().toDateString() === dt.toDateString();
+  const isSoon = dt && dt.getTime() - new Date().getTime() < 86400000 * 2 && !isToday;
 
   return (
-    <div className="theme-card-subtle overflow-hidden group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-      <Link href={`/event-detail?id=${e.id}`} className="block">
-        {/* Event Image */}
-        <div className="relative h-48 overflow-hidden">
-          {e.image_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img 
-              src={e.image_url} 
-              alt={e.title} 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
-            />
-          ) : (
-            <div className="w-full h-full bg-gradient-to-br from-purple-400 via-pink-400 to-orange-400 flex items-center justify-center">
-              <CustomIcon name="party" className="w-16 h-16 opacity-80" />
-            </div>
-          )}
-          
-        {/* Favorite button removed per request */}
+    <Link href={`/event-detail?id=${e.id}`} className="event-card group block">
+      {/* Event Image */}
+      <div className="event-card-image relative overflow-hidden">
+        {e.image_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={e.image_url}
+            alt={e.title}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+            <svg className="w-16 h-16 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
 
-          {/* Time-Sensitive Badge */}
-          {dt && (
-            <div className="absolute bottom-3 left-3">
-              {new Date().toDateString() === dt.toDateString() && (
-                <span className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-bold animate-pulse flex items-center gap-1">
-                  <CustomIcon name="fire" className="w-3 h-3" />
-                  TODAY
-                </span>
-              )}
-              {dt.getTime() - new Date().getTime() < 86400000 * 2 && new Date().toDateString() !== dt.toDateString() && (
-                <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
-                  <CustomIcon name="lightning" className="w-3 h-3" />
-                  SOON
-                </span>
-              )}
-            </div>
+        {/* Badges */}
+        <div className="absolute top-3 right-3 flex flex-col gap-2">
+          {isToday && (
+            <span className="event-badge badge-today shadow-lg">
+              TODAY
+            </span>
+          )}
+          {isSoon && (
+            <span className="event-badge badge-soon shadow-lg">
+              SOON
+            </span>
+          )}
+          {price.toLowerCase().includes('free') && (
+            <span className="event-badge badge-free shadow-lg">
+              FREE
+            </span>
           )}
         </div>
+      </div>
 
-        {/* Event Content */}
-        <div className="p-6">
-          <h3 className="text-xl font-bold theme-text-primary mb-3 line-clamp-2 group-hover:text-purple-600 transition-colors">
-            {e.title}
-          </h3>
+      {/* Event Content */}
+      <div className="p-5">
+        <h3 className="text-lg font-bold text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
+          {e.title}
+        </h3>
 
-          {/* Date & Time */}
-          <div className="flex items-center gap-2 mb-2 theme-text-secondary">
-            <CustomIcon name="clock" className="w-4 h-4" />
-            <span className="font-medium text-sm">{when}</span>
-          </div>
-
-          {/* Location */}
-          <div className="flex items-center gap-2 mb-3 theme-text-secondary">
-            <CustomIcon name="location" className="w-4 h-4" />
-            <span className="font-medium text-sm truncate">{where}</span>
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-wrap items-center gap-2 mb-4">
-            {e.category && (
-              <span className="theme-tag inline-flex items-center gap-1 text-xs">
-                {e.category}
-              </span>
-            )}
-            <span className="theme-tag-success inline-flex items-center gap-1 text-xs">
-              {price}
-            </span>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <span 
-              className="theme-btn-info flex-1 text-sm py-2 text-center"
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                window.location.href = `/event-detail?id=${e.id}`;
-              }}
-            >
-              Details
-            </span>
-            {e.url && (
-              <span className="theme-btn-success flex-1 text-sm py-2 text-center" onClick={(event) => { event.preventDefault(); event.stopPropagation(); window.open(e.url as string, '_blank', 'noopener') }}>Tickets</span>
-            )}
-          </div>
+        {/* Date & Time */}
+        <div className="flex items-start gap-2 mb-2 text-gray-600">
+          <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-sm">{when}</span>
         </div>
-      </Link>
-    </div>
+
+        {/* Location */}
+        {where && (
+          <div className="flex items-start gap-2 mb-3 text-gray-600">
+            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span className="text-sm line-clamp-1">{where}</span>
+          </div>
+        )}
+
+        {/* Category & Price */}
+        <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-gray-100">
+          {e.category && (
+            <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded">
+              {e.category}
+            </span>
+          )}
+          <span className="inline-block px-2 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded">
+            {price}
+          </span>
+        </div>
+      </div>
+    </Link>
   );
 }

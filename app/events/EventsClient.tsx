@@ -38,7 +38,8 @@ export default function EventsClient() {
   const [filters, setFilters] = useState({
     dateRange: '',
     city: '',
-    category: ''
+    category: '',
+    freeOnly: false
   })
   const [viewMode, setViewMode] = useState<'grid' | 'list' | 'calendar'>('grid')
   const [searchTerm, setSearchTerm] = useState('')
@@ -79,6 +80,7 @@ export default function EventsClient() {
 
       if (filters.city) q = q.ilike('city', filters.city)
       if (filters.category) q = q.ilike('category', filters.category)
+      if (filters.freeOnly) q = q.ilike('price_text', '%free%')
 
       const { data, error } = await q.order('start_time', { ascending: true }).limit(100)
       
@@ -122,7 +124,7 @@ export default function EventsClient() {
     }
   }
 
-  const handleFilterChange = (newFilters: { dateRange?: string; city?: string; category?: string }) => {
+  const handleFilterChange = (newFilters: { dateRange?: string; city?: string; category?: string; freeOnly?: boolean }) => {
     setFilters(prev => ({ ...prev, ...newFilters }))
   }
 
@@ -156,7 +158,7 @@ export default function EventsClient() {
         setSearchTerm('family')
         break
       default:
-        setFilters({ dateRange: '', city: '', category: '' })
+        setFilters({ dateRange: '', city: '', category: '', freeOnly: false })
         setSearchTerm('')
     }
   }
@@ -220,6 +222,7 @@ export default function EventsClient() {
             city={filters.city}
             category={filters.category}
             search={searchTerm}
+            freeOnly={filters.freeOnly}
             cities={cities}
             categories={categories}
             onFilterChange={(f) => { if (f.search !== undefined) setSearchTerm(f.search); handleFilterChange(f) }}
