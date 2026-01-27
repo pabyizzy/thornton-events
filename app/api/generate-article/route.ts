@@ -2,14 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { createClient } from '@supabase/supabase-js'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization - only create clients when needed
+function getOpenAI() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured')
+  }
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+}
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  )
+}
 
 type GenerateArticleRequest = {
   timePeriod: 'this-week' | 'this-weekend' | 'this-month' | 'next-month'
@@ -58,6 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch events from database
+    const supabase = getSupabase()
     let query = supabase
       .from('events')
       .select('id, title, start_time, venue, city, category, price_text, description')
@@ -145,6 +152,7 @@ Please provide the article in the following JSON format:
 Make sure the content is well-structured, informative, and encourages families to attend these events.`
 
     // Call OpenAI API
+    const openai = getOpenAI()
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [

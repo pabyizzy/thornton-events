@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { tavily } from '@tavily/core'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+// Lazy initialization - only create clients when needed
+function getOpenAI() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured')
+  }
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+}
 
-const tavilyClient = tavily({ apiKey: process.env.TAVILY_API_KEY || '' })
+function getTavilyClient() {
+  if (!process.env.TAVILY_API_KEY) {
+    throw new Error('TAVILY_API_KEY is not configured')
+  }
+  return tavily({ apiKey: process.env.TAVILY_API_KEY })
+}
 
 type GenerateResourceArticleRequest = {
   topic:
@@ -70,6 +79,7 @@ export async function POST(request: NextRequest) {
 
     // Perform web search using Tavily
     console.log('Searching web for:', config.query)
+    const tavilyClient = getTavilyClient()
     const searchResults = await tavilyClient.search(config.query, {
       searchDepth: 'advanced',
       maxResults: 10,
@@ -131,6 +141,7 @@ Important: Base the article ONLY on information from the web research provided. 
 
     // Call OpenAI API
     console.log('Generating article with OpenAI...')
+    const openai = getOpenAI()
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
