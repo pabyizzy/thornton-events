@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { tavily } from '@tavily/core'
+import OpenAI from 'openai'
 
 export interface ExternalDeal {
   source: string
@@ -15,7 +16,7 @@ export interface ExternalDeal {
   originalUrl: string
 }
 
-// Lazy initialization - only create client when needed
+// Lazy initialization
 function getTavilyClient() {
   if (!process.env.TAVILY_API_KEY) {
     throw new Error('TAVILY_API_KEY is not configured')
@@ -23,128 +24,41 @@ function getTavilyClient() {
   return tavily({ apiKey: process.env.TAVILY_API_KEY })
 }
 
-// Extract deal info from search result using heuristics
-function extractDealInfo(result: {
-  title: string
-  url: string
-  content: string
-  score: number
-}): ExternalDeal | null {
-  const { title, url, content } = result
-
-  // Skip non-deal results
-  const lowerTitle = title.toLowerCase()
-  const lowerContent = content.toLowerCase()
-  const isDeal =
-    lowerTitle.includes('deal') ||
-    lowerTitle.includes('coupon') ||
-    lowerTitle.includes('discount') ||
-    lowerTitle.includes('% off') ||
-    lowerTitle.includes('$ off') ||
-    lowerTitle.includes('sale') ||
-    lowerTitle.includes('promo') ||
-    lowerTitle.includes('free') ||
-    lowerContent.includes('deal') ||
-    lowerContent.includes('coupon') ||
-    lowerContent.includes('discount')
-
-  if (!isDeal) return null
-
-  // Extract source from URL
-  let source = 'Web'
-  let category = 'Local Deals'
-  const hostname = new URL(url).hostname.replace('www.', '')
-
-  if (hostname.includes('groupon')) {
-    source = 'Groupon'
-    category = 'Local Deals'
-  } else if (hostname.includes('retailmenot')) {
-    source = 'RetailMeNot'
-    category = 'Coupons'
-  } else if (hostname.includes('yelp')) {
-    source = 'Yelp'
-    category = 'Local Deals'
-  } else if (hostname.includes('slickdeals')) {
-    source = 'Slickdeals'
-    category = 'Retail & Shopping'
-  } else if (hostname.includes('dealsplus')) {
-    source = 'DealsPlus'
-    category = 'Retail & Shopping'
-  } else if (hostname.includes('coupons.com')) {
-    source = 'Coupons.com'
-    category = 'Coupons'
-  } else if (hostname.includes('honey') || hostname.includes('joinhoney')) {
-    source = 'Honey'
-    category = 'Coupons'
-  } else if (hostname.includes('restaurant') || hostname.includes('food')) {
-    category = 'Restaurants & Dining'
-  } else if (hostname.includes('target') || hostname.includes('walmart') || hostname.includes('costco')) {
-    source = hostname.split('.')[0].charAt(0).toUpperCase() + hostname.split('.')[0].slice(1)
-    category = 'Retail & Shopping'
+function getOpenAI() {
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error('OPENAI_API_KEY is not configured')
   }
-
-  // Try to extract discount amount
-  let discountAmount: string | undefined
-  const percentMatch = content.match(/(\d+)%\s*(off|discount)/i) || title.match(/(\d+)%\s*(off|discount)/i)
-  const dollarMatch = content.match(/\$(\d+(?:\.\d{2})?)\s*(off|discount)/i) || title.match(/\$(\d+(?:\.\d{2})?)\s*(off|discount)/i)
-
-  if (percentMatch) {
-    discountAmount = `${percentMatch[1]}% Off`
-  } else if (dollarMatch) {
-    discountAmount = `$${dollarMatch[1]} Off`
-  }
-
-  // Try to extract promo code
-  let promoCode: string | undefined
-  const codeMatch = content.match(/(?:code|promo|coupon)[:\s]+["']?([A-Z0-9]{4,20})["']?/i)
-  if (codeMatch) {
-    promoCode = codeMatch[1].toUpperCase()
-  }
-
-  // Extract business name (use source or parse from title)
-  let businessName = source
-  const titleParts = title.split(/[:\-|–]/)
-  if (titleParts.length > 1) {
-    businessName = titleParts[0].trim()
-  }
-
-  return {
-    source,
-    sourceUrl: `https://${hostname}`,
-    title: title.slice(0, 150),
-    description: content.slice(0, 300),
-    businessName,
-    discountAmount,
-    promoCode,
-    category,
-    originalUrl: url,
-  }
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 }
 
-// Search categories with specific queries
-const SEARCH_QUERIES: Record<string, string[]> = {
+// Search queries that find ACTUAL deals, not deal aggregator pages
+const DEAL_SEARCH_QUERIES: Record<string, string[]> = {
+  local: [
+    '"% off" OR "$ off" OR "free" restaurant Thornton Colorado 2026',
+    '"coupon" OR "promo code" Denver family activities discount',
+    '"special offer" OR "deal" Thornton CO local business',
+  ],
   groupon: [
-    'site:groupon.com Denver Colorado deals',
-    'site:groupon.com Thornton Colorado local deals',
+    'site:groupon.com/deals Denver "% off" spa massage',
+    'site:groupon.com/deals Colorado restaurant "$" price',
   ],
   retailmenot: [
-    'site:retailmenot.com Denver restaurant coupons',
-    'site:retailmenot.com Colorado deals',
+    'site:retailmenot.com "code" restaurant Denver coupon',
+    'site:retailmenot.com promo code Colorado stores',
   ],
-  yelp: [
-    'site:yelp.com Thornton Colorado deals offers',
+  restaurants: [
+    '"buy one get one" OR "BOGO" restaurant Thornton Denver',
+    '"happy hour" OR "kids eat free" Denver restaurant special',
+    '"% off" pizza burger Thornton Colorado coupon',
   ],
-  slickdeals: [
-    'site:slickdeals.net frontpage deals',
-    'site:slickdeals.net popular deals today',
+  activities: [
+    '"% off" OR "discount" family activities Denver kids',
+    '"free admission" OR "half price" museum zoo Denver',
+    'bowling arcade trampoline Denver coupon deal',
   ],
-  dealsplus: [
-    'site:dealsplus.com coupons deals',
-  ],
-  local: [
-    'Thornton Colorado local business deals discounts 2026',
-    'Denver metro area family deals coupons 2026',
-    'Colorado front range restaurant deals specials',
+  retail: [
+    '"% off" OR "clearance" store Thornton shopping deal',
+    '"coupon code" retail Denver Colorado savings',
   ],
 }
 
@@ -154,90 +68,184 @@ export async function GET(request: NextRequest) {
   const location = searchParams.get('location') || 'Thornton, CO'
   const query = searchParams.get('query') || 'deals'
 
-  const allDeals: ExternalDeal[] = []
-  const seenUrls = new Set<string>()
-
   try {
     const tavilyClient = getTavilyClient()
+    const openai = getOpenAI()
 
-    // Determine which queries to run
+    // Build search queries based on source
     let queries: string[] = []
 
     if (source === 'all') {
-      // Run a mix of queries
       queries = [
-        `${location} local business deals coupons discounts 2026`,
-        `Denver metro family deals discounts restaurants activities`,
-        'site:groupon.com Denver Colorado deals',
-        'site:retailmenot.com Colorado restaurant coupons',
-        'site:slickdeals.net frontpage deals',
+        `"% off" OR "coupon code" OR "promo" ${location} restaurant family 2026`,
+        `"free" OR "BOGO" OR "half price" Denver activities kids deal`,
+        `"discount" OR "special offer" Colorado local business coupon`,
       ]
-    } else if (SEARCH_QUERIES[source]) {
-      queries = SEARCH_QUERIES[source]
+    } else if (DEAL_SEARCH_QUERIES[source]) {
+      queries = DEAL_SEARCH_QUERIES[source]
     } else {
-      // Custom query
-      queries = [`${query} ${location} deals coupons discounts`]
+      queries = [`"% off" OR "coupon" OR "deal" ${query} ${location}`]
     }
 
-    // Run searches (limit to avoid rate limits)
-    const searchPromises = queries.slice(0, 3).map(async (searchQuery) => {
+    // Search with Tavily - use advanced depth to get more content
+    console.log('Searching for actual deals with queries:', queries)
+
+    const searchPromises = queries.slice(0, 2).map(async (searchQuery) => {
       try {
         const results = await tavilyClient.search(searchQuery, {
-          searchDepth: 'basic',
-          maxResults: 10,
-          includeAnswer: false,
+          searchDepth: 'advanced',
+          maxResults: 8,
+          includeAnswer: true,
         })
-        return results.results || []
+        return results
       } catch (err) {
         console.error(`Search error for "${searchQuery}":`, err)
-        return []
+        return { results: [], answer: '' }
       }
     })
 
     const searchResults = await Promise.all(searchPromises)
 
-    // Process all results
-    for (const results of searchResults) {
-      for (const result of results) {
-        // Skip duplicates
-        if (seenUrls.has(result.url)) continue
-        seenUrls.add(result.url)
+    // Combine all search content for AI processing
+    const allContent: string[] = []
+    const sourceUrls: string[] = []
 
-        const deal = extractDealInfo(result)
-        if (deal) {
-          allDeals.push(deal)
-        }
+    for (const search of searchResults) {
+      if (search.answer) {
+        allContent.push(`Summary: ${search.answer}`)
+      }
+      for (const result of search.results || []) {
+        allContent.push(`
+Source: ${result.url}
+Title: ${result.title}
+Content: ${result.content}
+---`)
+        sourceUrls.push(result.url)
       }
     }
 
-    // Sort by relevance (deals with discount amounts first, then by title length)
-    allDeals.sort((a, b) => {
-      if (a.discountAmount && !b.discountAmount) return -1
-      if (!a.discountAmount && b.discountAmount) return 1
-      if (a.promoCode && !b.promoCode) return -1
-      if (!a.promoCode && b.promoCode) return 1
-      return a.title.length - b.title.length
+    if (allContent.length === 0) {
+      return NextResponse.json({
+        success: true,
+        deals: [],
+        count: 0,
+        message: 'No deals found. Try a different search.',
+      })
+    }
+
+    // Use OpenAI to extract SPECIFIC deals from the search results
+    const prompt = `You are a deal extraction expert. Extract SPECIFIC, ACTIONABLE deals from the following web search results about deals in ${location}.
+
+IMPORTANT RULES:
+1. Only extract REAL deals with specific details (business name, discount amount, what you get)
+2. Do NOT include generic "check this site for deals" - users can do that themselves
+3. Each deal must have a SPECIFIC business name and SPECIFIC discount/offer
+4. If you find a promo code, include it
+5. Skip deals that are expired or don't have enough details
+6. Focus on deals relevant to families in ${location} area
+
+Web Search Results:
+${allContent.join('\n')}
+
+Extract up to 15 specific deals. Return as JSON array:
+{
+  "deals": [
+    {
+      "businessName": "Specific Business Name (e.g., 'Papa John's Thornton')",
+      "title": "Short deal title (e.g., '50% Off Large Pizza')",
+      "description": "What you get and any conditions (2-3 sentences max)",
+      "discountAmount": "The discount (e.g., '50% Off', '$10 Off', 'Buy One Get One Free')",
+      "promoCode": "CODE123 or null if none",
+      "category": "Restaurants & Dining | Kids Activities | Retail & Shopping | Entertainment | Services | Local Deals",
+      "expiresAt": "Expiration date if mentioned, or null",
+      "originalUrl": "Source URL where this deal was found"
+    }
+  ]
+}
+
+Only return the JSON object, no other text.`
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You extract specific, actionable deals from web content. Return only valid JSON.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0.3,
+      response_format: { type: 'json_object' },
     })
+
+    const responseText = completion.choices[0].message.content || '{}'
+    let extractedDeals: ExternalDeal[] = []
+
+    try {
+      const parsed = JSON.parse(responseText)
+      extractedDeals = (parsed.deals || []).map((deal: {
+        businessName?: string
+        title?: string
+        description?: string
+        discountAmount?: string
+        promoCode?: string
+        category?: string
+        expiresAt?: string
+        originalUrl?: string
+      }) => {
+        // Determine source from URL
+        let source = 'Local Deal'
+        const url = deal.originalUrl || ''
+        if (url.includes('groupon')) source = 'Groupon'
+        else if (url.includes('retailmenot')) source = 'RetailMeNot'
+        else if (url.includes('yelp')) source = 'Yelp'
+        else if (url.includes('slickdeals')) source = 'Slickdeals'
+
+        return {
+          source,
+          sourceUrl: url ? new URL(url).origin : '',
+          title: deal.title || 'Deal',
+          description: deal.description || '',
+          businessName: deal.businessName || 'Local Business',
+          discountAmount: deal.discountAmount,
+          promoCode: deal.promoCode || undefined,
+          category: deal.category || 'Local Deals',
+          expiresAt: deal.expiresAt || undefined,
+          originalUrl: deal.originalUrl || '',
+        }
+      })
+    } catch (parseError) {
+      console.error('Error parsing AI response:', parseError)
+    }
+
+    // Filter out deals without specific business names or discounts
+    const validDeals = extractedDeals.filter(deal =>
+      deal.businessName &&
+      deal.businessName !== 'Local Business' &&
+      deal.businessName !== 'Various' &&
+      (deal.discountAmount || deal.promoCode || deal.title.toLowerCase().includes('free'))
+    )
 
     return NextResponse.json({
       success: true,
-      deals: allDeals.slice(0, 30),
-      count: allDeals.length,
-      sources: ['Groupon', 'RetailMeNot', 'Yelp', 'Slickdeals', 'DealsPlus', 'Local Sources'],
+      deals: validDeals,
+      count: validDeals.length,
       searchedQueries: queries,
+      sourcesSearched: sourceUrls.length,
     })
+
   } catch (error) {
     console.error('Deal search error:', error)
 
-    // Check if it's an API key error
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
     if (errorMessage.includes('TAVILY_API_KEY')) {
       return NextResponse.json(
-        {
-          success: false,
-          error: 'Tavily API key not configured. Please add TAVILY_API_KEY to your environment variables.',
-          deals: []
-        },
+        { success: false, error: 'Tavily API key not configured.', deals: [] },
+        { status: 500 }
+      )
+    }
+
+    if (errorMessage.includes('OPENAI_API_KEY')) {
+      return NextResponse.json(
+        { success: false, error: 'OpenAI API key not configured.', deals: [] },
         { status: 500 }
       )
     }

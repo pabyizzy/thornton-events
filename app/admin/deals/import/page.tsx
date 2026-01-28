@@ -22,13 +22,13 @@ interface ExternalDeal {
 }
 
 const SOURCES = [
-  { id: 'all', name: 'All Sources', icon: '🔍' },
-  { id: 'local', name: 'Local Deals', icon: '📍', color: 'bg-teal-100 text-teal-700' },
+  { id: 'all', name: 'All Deals', icon: '🔍' },
+  { id: 'restaurants', name: 'Restaurants', icon: '🍔', color: 'bg-orange-100 text-orange-700' },
+  { id: 'activities', name: 'Family Activities', icon: '🎮', color: 'bg-purple-100 text-purple-700' },
+  { id: 'retail', name: 'Shopping', icon: '🛍️', color: 'bg-pink-100 text-pink-700' },
+  { id: 'local', name: 'Local Businesses', icon: '📍', color: 'bg-teal-100 text-teal-700' },
   { id: 'groupon', name: 'Groupon', icon: '🎫', color: 'bg-green-100 text-green-700' },
   { id: 'retailmenot', name: 'RetailMeNot', icon: '🏷️', color: 'bg-red-100 text-red-700' },
-  { id: 'yelp', name: 'Yelp', icon: '⭐', color: 'bg-red-100 text-red-700' },
-  { id: 'slickdeals', name: 'Slickdeals', icon: '🔥', color: 'bg-orange-100 text-orange-700' },
-  { id: 'dealsplus', name: 'DealsPlus', icon: '💰', color: 'bg-blue-100 text-blue-700' },
 ]
 
 const CATEGORY_MAP: Record<string, string> = {
@@ -181,12 +181,12 @@ export default function ImportDealsPage() {
               <span className="text-gray-900">Import</span>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Import Deals from Web</h1>
-            <p className="text-gray-600">Search the web for deals and import them to your site (powered by Tavily AI search)</p>
+            <p className="text-gray-600">AI extracts specific deals with real discounts, promo codes, and business names - ready to import</p>
           </div>
 
           {/* Source Selection */}
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Deal Sources</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Deal Category</h2>
             <div className="flex flex-wrap gap-3">
               {SOURCES.map((source) => (
                 <button
@@ -383,23 +383,22 @@ export default function ImportDealsPage() {
           {/* Empty State */}
           {!loading && deals.length === 0 && !error && (
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-              <div className="text-6xl mb-4">🔍</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Search for Deals</h3>
+              <div className="text-6xl mb-4">🎯</div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Find Specific Deals</h3>
               <p className="text-gray-600 mb-6">
-                Select a source and click &quot;Search for Deals&quot; to find deals you can import to your site.
+                AI will search the web and extract actual deals with specific discounts, promo codes, and business names - not just links to deal sites.
               </p>
               <div className="text-sm text-gray-500">
-                <p className="font-medium mb-2">Search options:</p>
+                <p className="font-medium mb-2">Search by category:</p>
                 <ul className="space-y-1">
-                  <li>📍 <strong>Local Deals</strong> - Deals specific to Thornton/Denver area</li>
-                  <li>🎫 <strong>Groupon</strong> - Local experiences and deals</li>
-                  <li>🏷️ <strong>RetailMeNot</strong> - Coupons and promo codes</li>
-                  <li>⭐ <strong>Yelp</strong> - Local business offers</li>
-                  <li>🔥 <strong>Slickdeals</strong> - Community-shared deals</li>
-                  <li>💰 <strong>DealsPlus</strong> - Retail deals and coupons</li>
+                  <li>🍔 <strong>Restaurants</strong> - BOGO, happy hours, kids eat free deals</li>
+                  <li>🎮 <strong>Family Activities</strong> - Museums, bowling, arcades discounts</li>
+                  <li>🛍️ <strong>Shopping</strong> - Store coupons and clearance deals</li>
+                  <li>📍 <strong>Local Businesses</strong> - Thornton/Denver area specials</li>
+                  <li>🎫 <strong>Groupon</strong> - Verified Groupon deals</li>
                 </ul>
                 <p className="mt-4 text-gray-400 text-xs">
-                  Powered by AI-assisted web search. Results are filtered for deal-related content.
+                  Powered by AI - extracts real deals with specific prices and promo codes.
                 </p>
               </div>
             </div>
