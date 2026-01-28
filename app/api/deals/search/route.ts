@@ -14,6 +14,7 @@ export interface ExternalDeal {
   imageUrl?: string
   expiresAt?: string
   originalUrl: string
+  businessAddress?: string
 }
 
 // Lazy initialization
@@ -31,34 +32,50 @@ function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 }
 
-// Search queries that find ACTUAL deals, not deal aggregator pages
+// LOCAL family deal sites to search - NOT aggregators like Groupon/Valpak
+const LOCAL_DEAL_SITES = [
+  'milehighonthecheap.com',
+  'macaronikid.com',
+  'coloradoparent.com',
+  'denverparent.net',
+  'coloradokids.com',
+  '303magazine.com',
+  '5280.com',
+  'westword.com',
+]
+
+// Sites to EXCLUDE from results
+const EXCLUDED_SITES = [
+  'groupon.com',
+  'valpak.com',
+  'retailmenot.com',
+  'coupons.com',
+  'slickdeals.net',
+  'dealsplus.com',
+  'honey.com',
+]
+
+// Search queries focused on LOCAL family deal blogs
 const DEAL_SEARCH_QUERIES: Record<string, string[]> = {
-  local: [
-    '"% off" OR "$ off" OR "free" restaurant Thornton Colorado 2026',
-    '"coupon" OR "promo code" Denver family activities discount',
-    '"special offer" OR "deal" Thornton CO local business',
-  ],
-  groupon: [
-    'site:groupon.com/deals Denver "% off" spa massage',
-    'site:groupon.com/deals Colorado restaurant "$" price',
-  ],
-  retailmenot: [
-    'site:retailmenot.com "code" restaurant Denver coupon',
-    'site:retailmenot.com promo code Colorado stores',
-  ],
   restaurants: [
-    '"buy one get one" OR "BOGO" restaurant Thornton Denver',
-    '"happy hour" OR "kids eat free" Denver restaurant special',
-    '"% off" pizza burger Thornton Colorado coupon',
+    'site:milehighonthecheap.com kids eat free Denver',
+    'site:coloradoparent.com kids eat free restaurant',
+    'site:macaronikid.com Denver restaurant deals specials',
   ],
   activities: [
-    '"% off" OR "discount" family activities Denver kids',
-    '"free admission" OR "half price" museum zoo Denver',
-    'bowling arcade trampoline Denver coupon deal',
+    'site:milehighonthecheap.com free admission Denver museum zoo',
+    'site:macaronikid.com Denver kids activities deals',
+    'site:coloradoparent.com family fun discount Denver',
   ],
-  retail: [
-    '"% off" OR "clearance" store Thornton shopping deal',
-    '"coupon code" retail Denver Colorado savings',
+  local: [
+    'site:milehighonthecheap.com Thornton deals',
+    'site:303magazine.com Denver deals discounts',
+    '"kids eat free" OR "free admission" Denver Thornton 2026',
+  ],
+  freebie: [
+    'site:milehighonthecheap.com free things to do Denver',
+    'site:macaronikid.com free events Denver kids',
+    'free admission museum Denver 2026',
   ],
 }
 
@@ -66,35 +83,36 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const source = searchParams.get('source') || 'all'
   const location = searchParams.get('location') || 'Thornton, CO'
-  const query = searchParams.get('query') || 'deals'
 
   try {
     const tavilyClient = getTavilyClient()
     const openai = getOpenAI()
 
-    // Build search queries based on source
+    // Build search queries - focus on local family deal sites
     let queries: string[] = []
 
     if (source === 'all') {
       queries = [
-        `"% off" OR "coupon code" OR "promo" ${location} restaurant family 2026`,
-        `"free" OR "BOGO" OR "half price" Denver activities kids deal`,
-        `"discount" OR "special offer" Colorado local business coupon`,
+        'site:milehighonthecheap.com kids eat free OR restaurant deals Denver',
+        'site:coloradoparent.com kids eat free restaurant deals',
+        'site:macaronikid.com Denver family deals discounts',
       ]
     } else if (DEAL_SEARCH_QUERIES[source]) {
       queries = DEAL_SEARCH_QUERIES[source]
     } else {
-      queries = [`"% off" OR "coupon" OR "deal" ${query} ${location}`]
+      queries = [
+        `site:milehighonthecheap.com ${source} deals Denver`,
+        `site:macaronikid.com ${source} Denver family`,
+      ]
     }
 
-    // Search with Tavily - use advanced depth to get more content
-    console.log('Searching for actual deals with queries:', queries)
+    console.log('Searching local deal sites:', queries)
 
-    const searchPromises = queries.slice(0, 2).map(async (searchQuery) => {
+    const searchPromises = queries.slice(0, 3).map(async (searchQuery) => {
       try {
         const results = await tavilyClient.search(searchQuery, {
           searchDepth: 'advanced',
-          maxResults: 8,
+          maxResults: 10,
           includeAnswer: true,
         })
         return results
@@ -106,7 +124,7 @@ export async function GET(request: NextRequest) {
 
     const searchResults = await Promise.all(searchPromises)
 
-    // Combine all search content for AI processing
+    // Combine content, EXCLUDING aggregator sites
     const allContent: string[] = []
     const sourceUrls: string[] = []
 
@@ -115,6 +133,13 @@ export async function GET(request: NextRequest) {
         allContent.push(`Summary: ${search.answer}`)
       }
       for (const result of search.results || []) {
+        // Skip excluded aggregator sites
+        const isExcluded = EXCLUDED_SITES.some(site => result.url.includes(site))
+        if (isExcluded) {
+          console.log('Skipping excluded site:', result.url)
+          continue
+        }
+
         allContent.push(`
 Source: ${result.url}
 Title: ${result.title}
@@ -133,45 +158,51 @@ Content: ${result.content}
       })
     }
 
-    // Use OpenAI to extract SPECIFIC deals from the search results
-    const prompt = `You are a deal extraction expert. Extract SPECIFIC, ACTIONABLE deals from the following web search results about deals in ${location}.
+    // AI prompt that extracts deals AND finds the ORIGINAL business URL
+    const prompt = `You are a deal extraction expert. Extract SPECIFIC deals from these local Denver/Colorado family blog posts.
 
-IMPORTANT RULES:
-1. Only extract REAL deals with specific details (business name, discount amount, what you get)
-2. Do NOT include generic "check this site for deals" - users can do that themselves
-3. Each deal must have a SPECIFIC business name and SPECIFIC discount/offer
-4. If you find a promo code, include it
-5. Skip deals that are expired or don't have enough details
-6. Focus on deals relevant to families in ${location} area
+CRITICAL RULES:
+1. Extract REAL deals with specific business names and discount amounts
+2. For "originalUrl" - find the ACTUAL BUSINESS WEBSITE, not the blog that listed the deal
+   - If a restaurant is mentioned, search your knowledge for their website (e.g., "3 Margaritas" -> "https://3margaritas.com")
+   - If you can't find the business website, use a Google search URL like "https://www.google.com/search?q=3+Margaritas+Thornton+CO"
+3. Do NOT return the blog URL (milehighonthecheap.com, macaronikid.com) as the originalUrl
+4. Include the business address/location if mentioned
+5. Skip vague deals without specific business names
+6. Focus on ${location} area but include Denver metro deals
 
-Web Search Results:
+Web Search Results from Local Family Blogs:
 ${allContent.join('\n')}
 
-Extract up to 15 specific deals. Return as JSON array:
+Extract up to 15 specific deals. Return as JSON:
 {
   "deals": [
     {
-      "businessName": "Specific Business Name (e.g., 'Papa John's Thornton')",
-      "title": "Short deal title (e.g., '50% Off Large Pizza')",
-      "description": "What you get and any conditions (2-3 sentences max)",
-      "discountAmount": "The discount (e.g., '50% Off', '$10 Off', 'Buy One Get One Free')",
-      "promoCode": "CODE123 or null if none",
-      "category": "Restaurants & Dining | Kids Activities | Retail & Shopping | Entertainment | Services | Local Deals",
-      "expiresAt": "Expiration date if mentioned, or null",
-      "originalUrl": "Source URL where this deal was found"
+      "businessName": "Exact Business Name (e.g., '3 Margaritas - Thornton')",
+      "title": "Short deal title (e.g., 'Kids Eat Free Wednesdays')",
+      "description": "What you get, conditions, times (2-3 sentences)",
+      "discountAmount": "The discount (e.g., 'Kids Eat Free', '50% Off', 'BOGO')",
+      "promoCode": "CODE or null",
+      "category": "Restaurants & Dining | Kids Activities | Entertainment | Free Events",
+      "expiresAt": "Expiration if known, or null",
+      "originalUrl": "BUSINESS WEBSITE URL (NOT the blog) - e.g., https://3margaritas.com or Google search if unknown",
+      "businessAddress": "Address if mentioned, or city/area"
     }
   ]
 }
 
-Only return the JSON object, no other text.`
+Return ONLY valid JSON.`
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'You extract specific, actionable deals from web content. Return only valid JSON.' },
+        {
+          role: 'system',
+          content: 'You extract deals from family blogs and find the ORIGINAL business websites. Never return blog URLs as the deal source - always find or construct the actual business URL.'
+        },
         { role: 'user', content: prompt },
       ],
-      temperature: 0.3,
+      temperature: 0.2,
       response_format: { type: 'json_object' },
     })
 
@@ -189,18 +220,19 @@ Only return the JSON object, no other text.`
         category?: string
         expiresAt?: string
         originalUrl?: string
+        businessAddress?: string
       }) => {
-        // Determine source from URL
-        let source = 'Local Deal'
         const url = deal.originalUrl || ''
-        if (url.includes('groupon')) source = 'Groupon'
-        else if (url.includes('retailmenot')) source = 'RetailMeNot'
-        else if (url.includes('yelp')) source = 'Yelp'
-        else if (url.includes('slickdeals')) source = 'Slickdeals'
+
+        // Determine source label
+        let sourceLabel = 'Local Deal'
+        if (url.includes('google.com/search')) {
+          sourceLabel = 'Search'
+        }
 
         return {
-          source,
-          sourceUrl: url ? new URL(url).origin : '',
+          source: sourceLabel,
+          sourceUrl: url ? (url.includes('google.com') ? '' : new URL(url).origin) : '',
           title: deal.title || 'Deal',
           description: deal.description || '',
           businessName: deal.businessName || 'Local Business',
@@ -208,20 +240,42 @@ Only return the JSON object, no other text.`
           promoCode: deal.promoCode || undefined,
           category: deal.category || 'Local Deals',
           expiresAt: deal.expiresAt || undefined,
-          originalUrl: deal.originalUrl || '',
+          originalUrl: url,
+          businessAddress: deal.businessAddress,
         }
       })
     } catch (parseError) {
       console.error('Error parsing AI response:', parseError)
     }
 
-    // Filter out deals without specific business names or discounts
-    const validDeals = extractedDeals.filter(deal =>
-      deal.businessName &&
-      deal.businessName !== 'Local Business' &&
-      deal.businessName !== 'Various' &&
-      (deal.discountAmount || deal.promoCode || deal.title.toLowerCase().includes('free'))
-    )
+    // Filter out invalid deals and any that still have blog URLs
+    const validDeals = extractedDeals.filter(deal => {
+      // Must have specific business name
+      if (!deal.businessName ||
+          deal.businessName === 'Local Business' ||
+          deal.businessName === 'Various' ||
+          deal.businessName.toLowerCase().includes('various')) {
+        return false
+      }
+
+      // Must have some discount info
+      if (!deal.discountAmount && !deal.promoCode && !deal.title.toLowerCase().includes('free')) {
+        return false
+      }
+
+      // Filter out if URL is still a blog/aggregator
+      const url = deal.originalUrl.toLowerCase()
+      if (EXCLUDED_SITES.some(site => url.includes(site))) {
+        return false
+      }
+      if (url.includes('milehighonthecheap') ||
+          url.includes('macaronikid') ||
+          url.includes('coloradoparent')) {
+        return false
+      }
+
+      return true
+    })
 
     return NextResponse.json({
       success: true,
@@ -229,6 +283,7 @@ Only return the JSON object, no other text.`
       count: validDeals.length,
       searchedQueries: queries,
       sourcesSearched: sourceUrls.length,
+      localSitesUsed: LOCAL_DEAL_SITES.slice(0, 3),
     })
 
   } catch (error) {

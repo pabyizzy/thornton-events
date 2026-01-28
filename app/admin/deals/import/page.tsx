@@ -23,21 +23,18 @@ interface ExternalDeal {
 
 const SOURCES = [
   { id: 'all', name: 'All Deals', icon: '🔍' },
-  { id: 'restaurants', name: 'Restaurants', icon: '🍔', color: 'bg-orange-100 text-orange-700' },
+  { id: 'restaurants', name: 'Kids Eat Free', icon: '🍔', color: 'bg-orange-100 text-orange-700' },
   { id: 'activities', name: 'Family Activities', icon: '🎮', color: 'bg-purple-100 text-purple-700' },
-  { id: 'retail', name: 'Shopping', icon: '🛍️', color: 'bg-pink-100 text-pink-700' },
-  { id: 'local', name: 'Local Businesses', icon: '📍', color: 'bg-teal-100 text-teal-700' },
-  { id: 'groupon', name: 'Groupon', icon: '🎫', color: 'bg-green-100 text-green-700' },
-  { id: 'retailmenot', name: 'RetailMeNot', icon: '🏷️', color: 'bg-red-100 text-red-700' },
+  { id: 'freebie', name: 'Free Events', icon: '🎁', color: 'bg-green-100 text-green-700' },
+  { id: 'local', name: 'Local Deals', icon: '📍', color: 'bg-teal-100 text-teal-700' },
 ]
 
 const CATEGORY_MAP: Record<string, string> = {
   'Local Deals': 'Local Deals',
-  'Coupons': 'Retail & Shopping',
-  'Retail & Shopping': 'Retail & Shopping',
-  'Restaurants': 'Restaurants & Dining',
   'Restaurants & Dining': 'Restaurants & Dining',
   'Kids Activities': 'Kids Activities',
+  'Entertainment': 'Entertainment',
+  'Free Events': 'Free Events',
 }
 
 export default function ImportDealsPage() {
@@ -180,8 +177,8 @@ export default function ImportDealsPage() {
               <span>/</span>
               <span className="text-gray-900">Import</span>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Import Deals from Web</h1>
-            <p className="text-gray-600">AI extracts specific deals with real discounts, promo codes, and business names - ready to import</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Import Local Deals</h1>
+            <p className="text-gray-600">Scrapes local family blogs and links directly to the business website - not the aggregator</p>
           </div>
 
           {/* Source Selection */}
@@ -384,21 +381,20 @@ export default function ImportDealsPage() {
           {!loading && deals.length === 0 && !error && (
             <div className="bg-white rounded-lg shadow-sm p-12 text-center">
               <div className="text-6xl mb-4">🎯</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Find Specific Deals</h3>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Find Local Deals</h3>
               <p className="text-gray-600 mb-6">
-                AI will search the web and extract actual deals with specific discounts, promo codes, and business names - not just links to deal sites.
+                Searches local family blogs (Mile High on the Cheap, Macaroni KID, Colorado Parent) and links directly to the business - not the blog.
               </p>
               <div className="text-sm text-gray-500">
                 <p className="font-medium mb-2">Search by category:</p>
                 <ul className="space-y-1">
-                  <li>🍔 <strong>Restaurants</strong> - BOGO, happy hours, kids eat free deals</li>
+                  <li>🍔 <strong>Kids Eat Free</strong> - Restaurant deals where kids eat free</li>
                   <li>🎮 <strong>Family Activities</strong> - Museums, bowling, arcades discounts</li>
-                  <li>🛍️ <strong>Shopping</strong> - Store coupons and clearance deals</li>
-                  <li>📍 <strong>Local Businesses</strong> - Thornton/Denver area specials</li>
-                  <li>🎫 <strong>Groupon</strong> - Verified Groupon deals</li>
+                  <li>🎁 <strong>Free Events</strong> - Free admission days and events</li>
+                  <li>📍 <strong>Local Deals</strong> - Thornton/Denver area specials</li>
                 </ul>
                 <p className="mt-4 text-gray-400 text-xs">
-                  Powered by AI - extracts real deals with specific prices and promo codes.
+                  Sources: milehighonthecheap.com, macaronikid.com, coloradoparent.com
                 </p>
               </div>
             </div>
