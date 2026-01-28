@@ -1,6 +1,5 @@
-'use server'
-
 import { NextRequest, NextResponse } from 'next/server'
+import { tavily } from '@tavily/core'
 
 export interface ExternalDeal {
   source: string
@@ -16,394 +15,233 @@ export interface ExternalDeal {
   originalUrl: string
 }
 
-// Helper to fetch with timeout
-async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 10000): Promise<Response> {
-  const controller = new AbortController()
-  const id = setTimeout(() => controller.abort(), timeout)
+// Lazy initialization - only create client when needed
+function getTavilyClient() {
+  if (!process.env.TAVILY_API_KEY) {
+    throw new Error('TAVILY_API_KEY is not configured')
+  }
+  return tavily({ apiKey: process.env.TAVILY_API_KEY })
+}
 
-  try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        ...options.headers,
-      },
-    })
-    clearTimeout(id)
-    return response
-  } catch (error) {
-    clearTimeout(id)
-    throw error
+// Extract deal info from search result using heuristics
+function extractDealInfo(result: {
+  title: string
+  url: string
+  content: string
+  score: number
+}): ExternalDeal | null {
+  const { title, url, content } = result
+
+  // Skip non-deal results
+  const lowerTitle = title.toLowerCase()
+  const lowerContent = content.toLowerCase()
+  const isDeal =
+    lowerTitle.includes('deal') ||
+    lowerTitle.includes('coupon') ||
+    lowerTitle.includes('discount') ||
+    lowerTitle.includes('% off') ||
+    lowerTitle.includes('$ off') ||
+    lowerTitle.includes('sale') ||
+    lowerTitle.includes('promo') ||
+    lowerTitle.includes('free') ||
+    lowerContent.includes('deal') ||
+    lowerContent.includes('coupon') ||
+    lowerContent.includes('discount')
+
+  if (!isDeal) return null
+
+  // Extract source from URL
+  let source = 'Web'
+  let category = 'Local Deals'
+  const hostname = new URL(url).hostname.replace('www.', '')
+
+  if (hostname.includes('groupon')) {
+    source = 'Groupon'
+    category = 'Local Deals'
+  } else if (hostname.includes('retailmenot')) {
+    source = 'RetailMeNot'
+    category = 'Coupons'
+  } else if (hostname.includes('yelp')) {
+    source = 'Yelp'
+    category = 'Local Deals'
+  } else if (hostname.includes('slickdeals')) {
+    source = 'Slickdeals'
+    category = 'Retail & Shopping'
+  } else if (hostname.includes('dealsplus')) {
+    source = 'DealsPlus'
+    category = 'Retail & Shopping'
+  } else if (hostname.includes('coupons.com')) {
+    source = 'Coupons.com'
+    category = 'Coupons'
+  } else if (hostname.includes('honey') || hostname.includes('joinhoney')) {
+    source = 'Honey'
+    category = 'Coupons'
+  } else if (hostname.includes('restaurant') || hostname.includes('food')) {
+    category = 'Restaurants & Dining'
+  } else if (hostname.includes('target') || hostname.includes('walmart') || hostname.includes('costco')) {
+    source = hostname.split('.')[0].charAt(0).toUpperCase() + hostname.split('.')[0].slice(1)
+    category = 'Retail & Shopping'
+  }
+
+  // Try to extract discount amount
+  let discountAmount: string | undefined
+  const percentMatch = content.match(/(\d+)%\s*(off|discount)/i) || title.match(/(\d+)%\s*(off|discount)/i)
+  const dollarMatch = content.match(/\$(\d+(?:\.\d{2})?)\s*(off|discount)/i) || title.match(/\$(\d+(?:\.\d{2})?)\s*(off|discount)/i)
+
+  if (percentMatch) {
+    discountAmount = `${percentMatch[1]}% Off`
+  } else if (dollarMatch) {
+    discountAmount = `$${dollarMatch[1]} Off`
+  }
+
+  // Try to extract promo code
+  let promoCode: string | undefined
+  const codeMatch = content.match(/(?:code|promo|coupon)[:\s]+["']?([A-Z0-9]{4,20})["']?/i)
+  if (codeMatch) {
+    promoCode = codeMatch[1].toUpperCase()
+  }
+
+  // Extract business name (use source or parse from title)
+  let businessName = source
+  const titleParts = title.split(/[:\-|–]/)
+  if (titleParts.length > 1) {
+    businessName = titleParts[0].trim()
+  }
+
+  return {
+    source,
+    sourceUrl: `https://${hostname}`,
+    title: title.slice(0, 150),
+    description: content.slice(0, 300),
+    businessName,
+    discountAmount,
+    promoCode,
+    category,
+    originalUrl: url,
   }
 }
 
-// Extract text content from HTML
-function extractText(html: string, startMarker: string, endMarker: string): string {
-  const startIdx = html.indexOf(startMarker)
-  if (startIdx === -1) return ''
-  const endIdx = html.indexOf(endMarker, startIdx + startMarker.length)
-  if (endIdx === -1) return ''
-  return html.slice(startIdx + startMarker.length, endIdx).trim()
+// Search categories with specific queries
+const SEARCH_QUERIES: Record<string, string[]> = {
+  groupon: [
+    'site:groupon.com Denver Colorado deals',
+    'site:groupon.com Thornton Colorado local deals',
+  ],
+  retailmenot: [
+    'site:retailmenot.com Denver restaurant coupons',
+    'site:retailmenot.com Colorado deals',
+  ],
+  yelp: [
+    'site:yelp.com Thornton Colorado deals offers',
+  ],
+  slickdeals: [
+    'site:slickdeals.net frontpage deals',
+    'site:slickdeals.net popular deals today',
+  ],
+  dealsplus: [
+    'site:dealsplus.com coupons deals',
+  ],
+  local: [
+    'Thornton Colorado local business deals discounts 2026',
+    'Denver metro area family deals coupons 2026',
+    'Colorado front range restaurant deals specials',
+  ],
 }
 
-// Clean HTML tags from text
-function cleanHtml(text: string): string {
-  return text
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-// ============================================================================
-// SOURCE 1: GROUPON
-// ============================================================================
-async function searchGroupon(location: string): Promise<ExternalDeal[]> {
-  const deals: ExternalDeal[] = []
-
-  try {
-    // Search Groupon for deals in the area
-    const searchUrl = `https://www.groupon.com/local/denver/deals`
-    const response = await fetchWithTimeout(searchUrl)
-
-    if (!response.ok) return deals
-
-    const html = await response.text()
-
-    // Parse deal cards from HTML using regex patterns
-    // Groupon uses JSON-LD for structured data
-    const jsonLdMatches = html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)
-
-    for (const match of jsonLdMatches) {
-      try {
-        const jsonData = JSON.parse(match[1])
-        if (jsonData['@type'] === 'Product' || jsonData['@type'] === 'Offer') {
-          deals.push({
-            source: 'Groupon',
-            sourceUrl: 'https://www.groupon.com',
-            title: jsonData.name || 'Groupon Deal',
-            description: jsonData.description || '',
-            businessName: jsonData.seller?.name || jsonData.brand?.name || 'Local Business',
-            discountAmount: jsonData.offers?.price ? `$${jsonData.offers.price}` : undefined,
-            category: 'Local Deals',
-            imageUrl: jsonData.image?.[0] || jsonData.image,
-            originalUrl: jsonData.url || searchUrl,
-          })
-        }
-      } catch {
-        // Skip invalid JSON
-      }
-    }
-
-    // Fallback: parse from HTML patterns if JSON-LD doesn't work
-    if (deals.length === 0) {
-      const dealPattern = /"dealTitle":"([^"]+)".*?"merchantName":"([^"]+)".*?"price":(\d+\.?\d*)/g
-      let dealMatch
-      while ((dealMatch = dealPattern.exec(html)) !== null && deals.length < 10) {
-        deals.push({
-          source: 'Groupon',
-          sourceUrl: 'https://www.groupon.com',
-          title: dealMatch[1],
-          description: `Deal from ${dealMatch[2]}`,
-          businessName: dealMatch[2],
-          discountAmount: `$${dealMatch[3]}`,
-          category: 'Local Deals',
-          originalUrl: searchUrl,
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Groupon search error:', error)
-  }
-
-  return deals.slice(0, 10)
-}
-
-// ============================================================================
-// SOURCE 2: RETAILMENOT
-// ============================================================================
-async function searchRetailMeNot(location: string): Promise<ExternalDeal[]> {
-  const deals: ExternalDeal[] = []
-
-  try {
-    // Search for coupons - RetailMeNot has a browse by store page
-    const searchUrl = `https://www.retailmenot.com/coupons/restaurants`
-    const response = await fetchWithTimeout(searchUrl)
-
-    if (!response.ok) return deals
-
-    const html = await response.text()
-
-    // Look for JSON data in the page
-    const dataMatch = html.match(/window\.__PRELOADED_STATE__\s*=\s*({[\s\S]*?});/)
-    if (dataMatch) {
-      try {
-        const data = JSON.parse(dataMatch[1])
-        // Extract deals from preloaded state
-        const coupons = data?.coupons?.items || data?.offers || []
-        for (const coupon of coupons.slice(0, 10)) {
-          deals.push({
-            source: 'RetailMeNot',
-            sourceUrl: 'https://www.retailmenot.com',
-            title: coupon.title || coupon.description || 'Coupon',
-            description: coupon.description || coupon.title || '',
-            businessName: coupon.merchantName || coupon.store || 'Various Stores',
-            discountAmount: coupon.discount || coupon.value,
-            promoCode: coupon.code,
-            category: 'Coupons',
-            imageUrl: coupon.image,
-            expiresAt: coupon.expirationDate,
-            originalUrl: coupon.url || searchUrl,
-          })
-        }
-      } catch {
-        // Parse error
-      }
-    }
-
-    // Fallback: simple HTML parsing
-    if (deals.length === 0) {
-      const couponPattern = /class="[^"]*offer[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([^<]+)<\/h3>[\s\S]*?<p[^>]*>([^<]+)<\/p>/gi
-      let match
-      while ((match = couponPattern.exec(html)) !== null && deals.length < 10) {
-        deals.push({
-          source: 'RetailMeNot',
-          sourceUrl: 'https://www.retailmenot.com',
-          title: cleanHtml(match[1]),
-          description: cleanHtml(match[2]),
-          businessName: 'Various Stores',
-          category: 'Coupons',
-          originalUrl: searchUrl,
-        })
-      }
-    }
-  } catch (error) {
-    console.error('RetailMeNot search error:', error)
-  }
-
-  return deals.slice(0, 10)
-}
-
-// ============================================================================
-// SOURCE 3: YELP DEALS
-// ============================================================================
-async function searchYelpDeals(location: string): Promise<ExternalDeal[]> {
-  const deals: ExternalDeal[] = []
-
-  try {
-    // Yelp has a deals section
-    const searchUrl = `https://www.yelp.com/search?find_desc=deals&find_loc=${encodeURIComponent(location)}`
-    const response = await fetchWithTimeout(searchUrl)
-
-    if (!response.ok) return deals
-
-    const html = await response.text()
-
-    // Look for business data in the page
-    const businessPattern = /"name":"([^"]+)"[\s\S]*?"rating":([\d.]+)[\s\S]*?"reviewCount":(\d+)/g
-    let match
-    while ((match = businessPattern.exec(html)) !== null && deals.length < 10) {
-      deals.push({
-        source: 'Yelp',
-        sourceUrl: 'https://www.yelp.com',
-        title: `${match[1]} - Special Offer`,
-        description: `Rated ${match[2]} stars with ${match[3]} reviews. Check Yelp for current deals and specials.`,
-        businessName: match[1],
-        category: 'Local Deals',
-        originalUrl: searchUrl,
-      })
-    }
-  } catch (error) {
-    console.error('Yelp search error:', error)
-  }
-
-  return deals.slice(0, 10)
-}
-
-// ============================================================================
-// SOURCE 4: SLICKDEALS
-// ============================================================================
-async function searchSlickdeals(query: string): Promise<ExternalDeal[]> {
-  const deals: ExternalDeal[] = []
-
-  try {
-    const searchUrl = `https://slickdeals.net/newsearch.php?q=${encodeURIComponent(query)}&searcharea=deals&searchin=first`
-    const response = await fetchWithTimeout(searchUrl)
-
-    if (!response.ok) return deals
-
-    const html = await response.text()
-
-    // Parse deal listings
-    const dealPattern = /<a[^>]*class="[^"]*dealTitle[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi
-    let match
-    while ((match = dealPattern.exec(html)) !== null && deals.length < 10) {
-      const title = cleanHtml(match[2])
-      const url = match[1].startsWith('http') ? match[1] : `https://slickdeals.net${match[1]}`
-
-      deals.push({
-        source: 'Slickdeals',
-        sourceUrl: 'https://slickdeals.net',
-        title: title,
-        description: `Hot deal found on Slickdeals: ${title}`,
-        businessName: 'Various Retailers',
-        category: 'Retail & Shopping',
-        originalUrl: url,
-      })
-    }
-
-    // Alternative pattern
-    if (deals.length === 0) {
-      const altPattern = /"dealTitle":"([^"]+)".*?"dealLink":"([^"]+)"/g
-      while ((match = altPattern.exec(html)) !== null && deals.length < 10) {
-        deals.push({
-          source: 'Slickdeals',
-          sourceUrl: 'https://slickdeals.net',
-          title: match[1],
-          description: `Deal from Slickdeals`,
-          businessName: 'Various Retailers',
-          category: 'Retail & Shopping',
-          originalUrl: match[2],
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Slickdeals search error:', error)
-  }
-
-  return deals.slice(0, 10)
-}
-
-// ============================================================================
-// SOURCE 5: DEALSPLUS
-// ============================================================================
-async function searchDealsPlus(query: string): Promise<ExternalDeal[]> {
-  const deals: ExternalDeal[] = []
-
-  try {
-    const searchUrl = `https://www.dealsplus.com/search?q=${encodeURIComponent(query)}`
-    const response = await fetchWithTimeout(searchUrl)
-
-    if (!response.ok) return deals
-
-    const html = await response.text()
-
-    // Parse deal cards
-    const dealPattern = /<div[^>]*class="[^"]*deal-card[^"]*"[\s\S]*?<h3[^>]*>([^<]+)<\/h3>[\s\S]*?<span[^>]*class="[^"]*store[^"]*"[^>]*>([^<]+)<\/span>/gi
-    let match
-    while ((match = dealPattern.exec(html)) !== null && deals.length < 10) {
-      deals.push({
-        source: 'DealsPlus',
-        sourceUrl: 'https://www.dealsplus.com',
-        title: cleanHtml(match[1]),
-        description: `Deal from ${cleanHtml(match[2])}`,
-        businessName: cleanHtml(match[2]),
-        category: 'Retail & Shopping',
-        originalUrl: searchUrl,
-      })
-    }
-  } catch (error) {
-    console.error('DealsPlus search error:', error)
-  }
-
-  return deals.slice(0, 10)
-}
-
-// ============================================================================
-// SOURCE 6: LOCAL NEWS / DENVER POST DEALS
-// ============================================================================
-async function searchLocalNews(location: string): Promise<ExternalDeal[]> {
-  const deals: ExternalDeal[] = []
-
-  try {
-    // Search for local deals in news
-    const searchUrl = `https://www.9news.com/search?q=${encodeURIComponent(location + ' deals coupons')}`
-    const response = await fetchWithTimeout(searchUrl)
-
-    if (!response.ok) return deals
-
-    const html = await response.text()
-
-    // Look for article titles about deals
-    const articlePattern = /<h\d[^>]*class="[^"]*headline[^"]*"[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/gi
-    let match
-    while ((match = articlePattern.exec(html)) !== null && deals.length < 10) {
-      const title = cleanHtml(match[2])
-      if (title.toLowerCase().includes('deal') || title.toLowerCase().includes('discount') || title.toLowerCase().includes('coupon') || title.toLowerCase().includes('free')) {
-        deals.push({
-          source: '9News Denver',
-          sourceUrl: 'https://www.9news.com',
-          title: title,
-          description: `Local news about deals and discounts in the Denver/Thornton area`,
-          businessName: 'Local News',
-          category: 'Local Deals',
-          originalUrl: match[1].startsWith('http') ? match[1] : `https://www.9news.com${match[1]}`,
-        })
-      }
-    }
-  } catch (error) {
-    console.error('Local news search error:', error)
-  }
-
-  return deals.slice(0, 10)
-}
-
-// ============================================================================
-// MAIN API HANDLER
-// ============================================================================
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
   const source = searchParams.get('source') || 'all'
   const location = searchParams.get('location') || 'Thornton, CO'
   const query = searchParams.get('query') || 'deals'
 
-  let allDeals: ExternalDeal[] = []
+  const allDeals: ExternalDeal[] = []
+  const seenUrls = new Set<string>()
 
   try {
-    if (source === 'all' || source === 'groupon') {
-      const grouponDeals = await searchGroupon(location)
-      allDeals = [...allDeals, ...grouponDeals]
+    const tavilyClient = getTavilyClient()
+
+    // Determine which queries to run
+    let queries: string[] = []
+
+    if (source === 'all') {
+      // Run a mix of queries
+      queries = [
+        `${location} local business deals coupons discounts 2026`,
+        `Denver metro family deals discounts restaurants activities`,
+        'site:groupon.com Denver Colorado deals',
+        'site:retailmenot.com Colorado restaurant coupons',
+        'site:slickdeals.net frontpage deals',
+      ]
+    } else if (SEARCH_QUERIES[source]) {
+      queries = SEARCH_QUERIES[source]
+    } else {
+      // Custom query
+      queries = [`${query} ${location} deals coupons discounts`]
     }
 
-    if (source === 'all' || source === 'retailmenot') {
-      const retailMeNotDeals = await searchRetailMeNot(location)
-      allDeals = [...allDeals, ...retailMeNotDeals]
+    // Run searches (limit to avoid rate limits)
+    const searchPromises = queries.slice(0, 3).map(async (searchQuery) => {
+      try {
+        const results = await tavilyClient.search(searchQuery, {
+          searchDepth: 'basic',
+          maxResults: 10,
+          includeAnswer: false,
+        })
+        return results.results || []
+      } catch (err) {
+        console.error(`Search error for "${searchQuery}":`, err)
+        return []
+      }
+    })
+
+    const searchResults = await Promise.all(searchPromises)
+
+    // Process all results
+    for (const results of searchResults) {
+      for (const result of results) {
+        // Skip duplicates
+        if (seenUrls.has(result.url)) continue
+        seenUrls.add(result.url)
+
+        const deal = extractDealInfo(result)
+        if (deal) {
+          allDeals.push(deal)
+        }
+      }
     }
 
-    if (source === 'all' || source === 'yelp') {
-      const yelpDeals = await searchYelpDeals(location)
-      allDeals = [...allDeals, ...yelpDeals]
-    }
-
-    if (source === 'all' || source === 'slickdeals') {
-      const slickDeals = await searchSlickdeals(query)
-      allDeals = [...allDeals, ...slickDeals]
-    }
-
-    if (source === 'all' || source === 'dealsplus') {
-      const dealsPlusDeals = await searchDealsPlus(query)
-      allDeals = [...allDeals, ...dealsPlusDeals]
-    }
-
-    if (source === 'all' || source === 'localnews') {
-      const localNewsDeals = await searchLocalNews(location)
-      allDeals = [...allDeals, ...localNewsDeals]
-    }
+    // Sort by relevance (deals with discount amounts first, then by title length)
+    allDeals.sort((a, b) => {
+      if (a.discountAmount && !b.discountAmount) return -1
+      if (!a.discountAmount && b.discountAmount) return 1
+      if (a.promoCode && !b.promoCode) return -1
+      if (!a.promoCode && b.promoCode) return 1
+      return a.title.length - b.title.length
+    })
 
     return NextResponse.json({
       success: true,
-      deals: allDeals,
+      deals: allDeals.slice(0, 30),
       count: allDeals.length,
-      sources: ['Groupon', 'RetailMeNot', 'Yelp', 'Slickdeals', 'DealsPlus', '9News Denver'],
+      sources: ['Groupon', 'RetailMeNot', 'Yelp', 'Slickdeals', 'DealsPlus', 'Local Sources'],
+      searchedQueries: queries,
     })
   } catch (error) {
     console.error('Deal search error:', error)
+
+    // Check if it's an API key error
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    if (errorMessage.includes('TAVILY_API_KEY')) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Tavily API key not configured. Please add TAVILY_API_KEY to your environment variables.',
+          deals: []
+        },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json(
       { success: false, error: 'Failed to search for deals', deals: [] },
       { status: 500 }

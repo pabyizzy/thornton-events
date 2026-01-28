@@ -23,19 +23,21 @@ interface ExternalDeal {
 
 const SOURCES = [
   { id: 'all', name: 'All Sources', icon: '🔍' },
+  { id: 'local', name: 'Local Deals', icon: '📍', color: 'bg-teal-100 text-teal-700' },
   { id: 'groupon', name: 'Groupon', icon: '🎫', color: 'bg-green-100 text-green-700' },
   { id: 'retailmenot', name: 'RetailMeNot', icon: '🏷️', color: 'bg-red-100 text-red-700' },
-  { id: 'yelp', name: 'Yelp Deals', icon: '⭐', color: 'bg-red-100 text-red-700' },
+  { id: 'yelp', name: 'Yelp', icon: '⭐', color: 'bg-red-100 text-red-700' },
   { id: 'slickdeals', name: 'Slickdeals', icon: '🔥', color: 'bg-orange-100 text-orange-700' },
   { id: 'dealsplus', name: 'DealsPlus', icon: '💰', color: 'bg-blue-100 text-blue-700' },
-  { id: 'localnews', name: '9News Denver', icon: '📰', color: 'bg-purple-100 text-purple-700' },
 ]
 
 const CATEGORY_MAP: Record<string, string> = {
-  'Local Deals': 'Kids Activities',
+  'Local Deals': 'Local Deals',
   'Coupons': 'Retail & Shopping',
   'Retail & Shopping': 'Retail & Shopping',
   'Restaurants': 'Restaurants & Dining',
+  'Restaurants & Dining': 'Restaurants & Dining',
+  'Kids Activities': 'Kids Activities',
 }
 
 export default function ImportDealsPage() {
@@ -179,7 +181,7 @@ export default function ImportDealsPage() {
               <span className="text-gray-900">Import</span>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">Import Deals from Web</h1>
-            <p className="text-gray-600">Search and import deals from popular deal websites</p>
+            <p className="text-gray-600">Search the web for deals and import them to your site (powered by Tavily AI search)</p>
           </div>
 
           {/* Source Selection */}
@@ -387,15 +389,18 @@ export default function ImportDealsPage() {
                 Select a source and click &quot;Search for Deals&quot; to find deals you can import to your site.
               </p>
               <div className="text-sm text-gray-500">
-                <p className="font-medium mb-2">Available sources:</p>
+                <p className="font-medium mb-2">Search options:</p>
                 <ul className="space-y-1">
+                  <li>📍 <strong>Local Deals</strong> - Deals specific to Thornton/Denver area</li>
                   <li>🎫 <strong>Groupon</strong> - Local experiences and deals</li>
                   <li>🏷️ <strong>RetailMeNot</strong> - Coupons and promo codes</li>
-                  <li>⭐ <strong>Yelp Deals</strong> - Local business offers</li>
+                  <li>⭐ <strong>Yelp</strong> - Local business offers</li>
                   <li>🔥 <strong>Slickdeals</strong> - Community-shared deals</li>
                   <li>💰 <strong>DealsPlus</strong> - Retail deals and coupons</li>
-                  <li>📰 <strong>9News Denver</strong> - Local news deal coverage</li>
                 </ul>
+                <p className="mt-4 text-gray-400 text-xs">
+                  Powered by AI-assisted web search. Results are filtered for deal-related content.
+                </p>
               </div>
             </div>
           )}
