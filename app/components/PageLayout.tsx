@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import NavBar from './NavBar'
+import { GoogleAdBanner } from './GoogleAd'
 
 interface PageLayoutProps {
   children: React.ReactNode
@@ -13,25 +14,11 @@ export default function PageLayout({ children, showBanner = false }: PageLayoutP
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Top Banner Ad Space - For Rent (only show on home page) */}
+      {/* Top Banner Ad Space */}
       {showBanner && (
-        <div className="bg-gradient-to-r from-purple-100 via-pink-100 to-orange-100 border-b-4 border-dashed border-gray-300">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-            <div className="text-center">
-              <div className="mb-2">
-                <svg className="w-10 h-10 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-gray-700 mb-1">Premium Banner Space Available</h3>
-              <p className="text-sm text-gray-600 mb-2">Advertise your business to thousands of local families</p>
-              <a
-                href="mailto:thorntoncoevents@gmail.com"
-                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-lg transition-colors text-sm"
-              >
-                Rent This Space
-              </a>
-            </div>
+        <div className="bg-gray-50 border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2">
+            <GoogleAdBanner slot="top-banner" className="mx-auto" />
           </div>
         </div>
       )}

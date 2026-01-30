@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabaseClient'
+import { GoogleAdResponsive } from './GoogleAd'
 
 type Article = {
   id: string
@@ -194,12 +195,7 @@ export default function ArticleSidebar() {
       </div>
 
       {/* Ad Space 1 */}
-      <div className="bg-gray-100 rounded-lg shadow-sm p-6 border-2 border-dashed border-gray-300">
-        <div className="text-center text-gray-500 text-sm mb-2">Advertisement</div>
-        <div className="bg-white rounded-lg p-8 flex items-center justify-center min-h-[250px]">
-          <p className="text-gray-400 text-sm">Ad Space 300x250</p>
-        </div>
-      </div>
+      <GoogleAdResponsive slot="sidebar-1" className="rounded-lg overflow-hidden" />
 
       {/* Categories */}
       <div className="bg-white rounded-lg shadow-sm p-6">
@@ -224,12 +220,7 @@ export default function ArticleSidebar() {
       </div>
 
       {/* Ad Space 2 */}
-      <div className="bg-gray-100 rounded-lg shadow-sm p-6 border-2 border-dashed border-gray-300">
-        <div className="text-center text-gray-500 text-sm mb-2">Advertisement</div>
-        <div className="bg-white rounded-lg p-8 flex items-center justify-center min-h-[250px]">
-          <p className="text-gray-400 text-sm">Ad Space 300x250</p>
-        </div>
-      </div>
+      <GoogleAdResponsive slot="sidebar-2" className="rounded-lg overflow-hidden" />
     </aside>
   )
 }

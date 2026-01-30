@@ -8,6 +8,7 @@ import CalendarView from '../components/CalendarView'
 import LoadingSkeleton from '../components/LoadingSkeleton'
 import CustomIcon from '../components/CustomIcon'
 import Filters from './Filters'
+import { GoogleAdResponsive } from '../components/GoogleAd'
 // Removed EventSlider hero usage per new logo banner
 
 function rangeFor(param?: string) {
@@ -346,19 +347,11 @@ export default function EventsClient() {
                 </a>
               </div>
             </div>
-            <div className="theme-content-area mb-6 p-6 text-center">
-              <div className="bg-gradient-to-br from-blue-100 to-purple-100 p-8 rounded-lg border-2 border-dashed border-gray-300">
-                <h3 className="text-lg font-bold text-gray-600 mb-2">Advertisement Space</h3>
-                <p className="text-gray-500 text-sm">300x250 Banner</p>
-                <div className="mt-4 text-4xl opacity-50">🎯</div>
-              </div>
+            <div className="theme-content-area mb-6 p-6">
+              <GoogleAdResponsive slot="events-sidebar-1" className="rounded-lg overflow-hidden" />
             </div>
-            <div className="theme-content-area p-6 text-center">
-              <div className="bg-gradient-to-br from-green-100 to-blue-100 p-8 rounded-lg border-2 border-dashed border-gray-300">
-                <h3 className="text-lg font-bold text-gray-600 mb-2">Advertisement Space</h3>
-                <p className="text-gray-500 text-sm">300x250 Banner</p>
-                <div className="mt-4 text-4xl opacity-50">💼</div>
-              </div>
+            <div className="theme-content-area p-6">
+              <GoogleAdResponsive slot="events-sidebar-2" className="rounded-lg overflow-hidden" />
             </div>
           </div>
         </div>

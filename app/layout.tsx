@@ -7,6 +7,9 @@ import { AuthProvider } from "@/lib/AuthContext";
 // Google Analytics Measurement ID - Replace with your actual GA4 ID when ready
 const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
+// Google AdSense Publisher ID
+const ADSENSE_ID = process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_ID;
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -46,6 +49,14 @@ export default function RootLayout({
               `}
             </Script>
           </>
+        )}
+        {/* Google AdSense - Only loads if ADSENSE_ID is set */}
+        {ADSENSE_ID && (
+          <Script
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_ID}`}
+            strategy="afterInteractive"
+            crossOrigin="anonymous"
+          />
         )}
       </head>
       <body
