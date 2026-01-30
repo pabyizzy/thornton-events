@@ -14,7 +14,8 @@
     "deploy-windows": "node deploy-windows.js",
     "watch": "node auto-release.js",
     "ingest:milehigh": "node scripts/ingest-milehigh.mjs",
-    "ingest:ticketmaster": "node scripts/ingest-ticketmaster.mjs"
+    "ingest:ticketmaster": "node scripts/ingest-ticketmaster.mjs",
+    "ingest:daily-deals": "node scripts/ingest-daily-deals.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
