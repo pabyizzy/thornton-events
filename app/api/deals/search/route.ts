@@ -32,18 +32,6 @@ function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 }
 
-// LOCAL family deal sites to search - NOT aggregators like Groupon/Valpak
-const LOCAL_DEAL_SITES = [
-  'milehighonthecheap.com',
-  'macaronikid.com',
-  'coloradoparent.com',
-  'denverparent.net',
-  'coloradokids.com',
-  '303magazine.com',
-  '5280.com',
-  'westword.com',
-]
-
 // Sites to EXCLUDE from results
 const EXCLUDED_SITES = [
   'groupon.com',
@@ -88,7 +76,7 @@ export async function GET(request: NextRequest) {
     const tavilyClient = getTavilyClient()
     const openai = getOpenAI()
 
-    // Build search queries - focus on local family deal sites
+    // Build search queries
     let queries: string[] = []
 
     if (source === 'all') {
@@ -124,32 +112,25 @@ export async function GET(request: NextRequest) {
 
     const searchResults = await Promise.all(searchPromises)
 
-    // Combine content, EXCLUDING aggregator sites
-    const allContent: string[] = []
-    const sourceUrls: string[] = []
+    // Build content with VERIFIED source URLs for each result
+    // We'll pass the exact URL to the AI and tell it to use THAT URL
+    const contentWithSources: Array<{ url: string; title: string; content: string }> = []
 
     for (const search of searchResults) {
-      if (search.answer) {
-        allContent.push(`Summary: ${search.answer}`)
-      }
       for (const result of search.results || []) {
         // Skip excluded aggregator sites
         const isExcluded = EXCLUDED_SITES.some(site => result.url.includes(site))
-        if (isExcluded) {
-          console.log('Skipping excluded site:', result.url)
-          continue
-        }
+        if (isExcluded) continue
 
-        allContent.push(`
-Source: ${result.url}
-Title: ${result.title}
-Content: ${result.content}
----`)
-        sourceUrls.push(result.url)
+        contentWithSources.push({
+          url: result.url,
+          title: result.title,
+          content: result.content,
+        })
       }
     }
 
-    if (allContent.length === 0) {
+    if (contentWithSources.length === 0) {
       return NextResponse.json({
         success: true,
         deals: [],
@@ -158,35 +139,45 @@ Content: ${result.content}
       })
     }
 
-    // AI prompt that extracts deals AND finds the ORIGINAL business URL
-    const prompt = `You are a deal extraction expert. Extract SPECIFIC deals from these local Denver/Colorado family blog posts.
+    // Format content for AI - include the EXACT URL with each entry
+    const formattedContent = contentWithSources.map((item, index) =>
+      `[SOURCE ${index + 1}]
+URL: ${item.url}
+Title: ${item.title}
+Content: ${item.content}
+---`
+    ).join('\n\n')
 
-CRITICAL RULES:
-1. Extract REAL deals with specific business names and discount amounts
-2. For "originalUrl" - find the ACTUAL BUSINESS WEBSITE, not the blog that listed the deal
-   - If a restaurant is mentioned, search your knowledge for their website (e.g., "3 Margaritas" -> "https://3margaritas.com")
-   - If you can't find the business website, use a Google search URL like "https://www.google.com/search?q=3+Margaritas+Thornton+CO"
-3. Do NOT return the blog URL (milehighonthecheap.com, macaronikid.com) as the originalUrl
-4. Include the business address/location if mentioned
-5. Skip vague deals without specific business names
-6. Focus on ${location} area but include Denver metro deals
+    // AI prompt - extract deals and use the EXACT source URL provided
+    const prompt = `Extract specific deals from these local family blog articles about ${location}.
 
-Web Search Results from Local Family Blogs:
-${allContent.join('\n')}
+CRITICAL: For each deal, use the EXACT "URL" from the source where you found it. Do NOT make up or guess business websites.
 
-Extract up to 15 specific deals. Return as JSON:
+Example: If you find "Kids Eat Free at Denny's" in [SOURCE 3] with URL "https://milehighonthecheap.com/kids-eat-free-denver/",
+then originalUrl should be "https://milehighonthecheap.com/kids-eat-free-denver/" (the exact source URL, NOT dennys.com)
+
+RULES:
+1. Extract deals with specific business names and discount amounts
+2. originalUrl MUST be the exact URL from the [SOURCE] block where you found the deal
+3. Include business address/location if mentioned
+4. Skip vague deals without specific business names
+
+Blog Articles:
+${formattedContent}
+
+Return up to 15 deals as JSON:
 {
   "deals": [
     {
-      "businessName": "Exact Business Name (e.g., '3 Margaritas - Thornton')",
-      "title": "Short deal title (e.g., 'Kids Eat Free Wednesdays')",
+      "businessName": "Exact Business Name (e.g., 'Denny's')",
+      "title": "Short deal title (e.g., 'Kids Eat Free Tuesdays')",
       "description": "What you get, conditions, times (2-3 sentences)",
-      "discountAmount": "The discount (e.g., 'Kids Eat Free', '50% Off', 'BOGO')",
+      "discountAmount": "The discount (e.g., 'Kids Eat Free', '50% Off')",
       "promoCode": "CODE or null",
       "category": "Restaurants & Dining | Kids Activities | Entertainment | Free Events",
       "expiresAt": "Expiration if known, or null",
-      "originalUrl": "BUSINESS WEBSITE URL (NOT the blog) - e.g., https://3margaritas.com or Google search if unknown",
-      "businessAddress": "Address if mentioned, or city/area"
+      "originalUrl": "EXACT URL from the source where you found this deal",
+      "businessAddress": "Address or city if mentioned"
     }
   ]
 }
@@ -198,7 +189,7 @@ Return ONLY valid JSON.`
       messages: [
         {
           role: 'system',
-          content: 'You extract deals from family blogs and find the ORIGINAL business websites. Never return blog URLs as the deal source - always find or construct the actual business URL.'
+          content: 'You extract deals from blog articles. Always use the EXACT source URL provided - never make up or guess business website URLs.'
         },
         { role: 'user', content: prompt },
       ],
@@ -224,15 +215,19 @@ Return ONLY valid JSON.`
       }) => {
         const url = deal.originalUrl || ''
 
-        // Determine source label
-        let sourceLabel = 'Local Deal'
-        if (url.includes('google.com/search')) {
-          sourceLabel = 'Search'
-        }
+        // Determine source label from URL
+        let sourceLabel = 'Local Blog'
+        if (url.includes('milehighonthecheap')) sourceLabel = 'Mile High on the Cheap'
+        else if (url.includes('macaronikid')) sourceLabel = 'Macaroni KID'
+        else if (url.includes('coloradoparent')) sourceLabel = 'Colorado Parent'
+        else if (url.includes('denverparent')) sourceLabel = 'Denver Parent'
+        else if (url.includes('303magazine')) sourceLabel = '303 Magazine'
+        else if (url.includes('5280')) sourceLabel = '5280 Magazine'
+        else if (url.includes('westword')) sourceLabel = 'Westword'
 
         return {
           source: sourceLabel,
-          sourceUrl: url ? (url.includes('google.com') ? '' : new URL(url).origin) : '',
+          sourceUrl: url,
           title: deal.title || 'Deal',
           description: deal.description || '',
           businessName: deal.businessName || 'Local Business',
@@ -248,7 +243,7 @@ Return ONLY valid JSON.`
       console.error('Error parsing AI response:', parseError)
     }
 
-    // Filter out invalid deals and any that still have blog URLs
+    // Filter out invalid deals
     const validDeals = extractedDeals.filter(deal => {
       // Must have specific business name
       if (!deal.businessName ||
@@ -258,19 +253,19 @@ Return ONLY valid JSON.`
         return false
       }
 
-      // Must have some discount info
+      // Must have discount info
       if (!deal.discountAmount && !deal.promoCode && !deal.title.toLowerCase().includes('free')) {
         return false
       }
 
-      // Filter out if URL is still a blog/aggregator
-      const url = deal.originalUrl.toLowerCase()
-      if (EXCLUDED_SITES.some(site => url.includes(site))) {
+      // Must have a valid source URL (not made up business URLs)
+      if (!deal.originalUrl || deal.originalUrl.length < 10) {
         return false
       }
-      if (url.includes('milehighonthecheap') ||
-          url.includes('macaronikid') ||
-          url.includes('coloradoparent')) {
+
+      // Exclude aggregator sites
+      const url = deal.originalUrl.toLowerCase()
+      if (EXCLUDED_SITES.some(site => url.includes(site))) {
         return false
       }
 
@@ -282,8 +277,7 @@ Return ONLY valid JSON.`
       deals: validDeals,
       count: validDeals.length,
       searchedQueries: queries,
-      sourcesSearched: sourceUrls.length,
-      localSitesUsed: LOCAL_DEAL_SITES.slice(0, 3),
+      sourcesSearched: contentWithSources.length,
     })
 
   } catch (error) {
