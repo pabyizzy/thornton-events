@@ -12,7 +12,9 @@
     "release": "npm run export:static && npm run deploy",
     "auto-deploy": "node auto-deploy.js",
     "deploy-windows": "node deploy-windows.js",
-    "watch": "node auto-release.js"
+    "watch": "node auto-release.js",
+    "ingest:milehigh": "node scripts/ingest-milehigh.mjs",
+    "ingest:ticketmaster": "node scripts/ingest-ticketmaster.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",
